@@ -11,7 +11,7 @@ Open `index.html` in a browser (an internet connection is needed, because p5.js 
 
 ## Inspiration
 
-[Group: describe the source artwork (title, year, Yayoi Kusama) and how it shaped the approach. Credit the artwork with a link.]
+Flower artwork by Yayoi Kusama
 
 ## Mechanic ownership
 
@@ -22,7 +22,6 @@ Open `index.html` in a browser (an internet connection is needed, because p5.js 
 | Time-based | [name] | `[time-mechanic.js]` |
 | User input | [name] | `[input-controls.js]` |
 
-`plants.js` holds the static stems. `sketch.js` brings all the scripts together.
 
 ### Perlin noise and randomness (Jackie)
 
@@ -46,7 +45,7 @@ Colours are picked at random from a palette sampled from the painting, so every 
 
 ## AI acknowledgement
 
-- **Jackie (`perlin-layer.js`, `plants.js`, `sketch.js`):** parts of this code were generated with the help of Claude (Anthropic) and then edited. Claude helped structure the classes, write the petal-shape and noise logic, and debug the layout. This is also noted in comments at the top of each file.
+- **Jackie (`perlin-layer.js`, `plants.js`, `sketch.js`):** parts of this code were generated with the help of Claude (Anthropic). Claude helped write the petal-shape and noise logic, and debug. 
 - [Teammates: add your own acknowledgement, or "None".]
 
 ## External references
