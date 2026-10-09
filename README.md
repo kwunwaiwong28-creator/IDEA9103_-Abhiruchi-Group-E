@@ -8,9 +8,6 @@ Open `index.html` in a browser (an internet connection is needed, because p5.js 
 
 ## Interaction instructions
 
-- **Watch:** the flowers draw themselves in, dots drift, leaves sway and the background lines wander.
-- **Refresh the page:** every refresh generates a new composition (new colours, petal counts and dot layouts).
-- [Teammates: add how to interact with your mechanic, e.g. "move the mouse", "click to start audio".]
 
 ## Inspiration
 
