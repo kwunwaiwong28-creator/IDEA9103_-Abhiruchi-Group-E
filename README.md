@@ -20,14 +20,14 @@ Open `index.html` in a browser (an internet connection is needed, because p5.js 
 
 | Mechanic | Team member | Script |
 | --- | --- | --- |
-| Perlin noise and randomness | Jackie | `perlin-layer.js` |
+| Perlin noise and randomness | Jackie | `perlin-layer.js` |`plants.js` |
 | Time-based | [name] | `time-mechanic.js` |
 | Audio | [name] | `[audio-mechanic.js]` |
 | User input | [name] | `[input-controls.js]` |
 
 `plants.js` holds the static stems. `sketch.js` brings all the scripts together.
 
-### Perlin noise and randomness (`perlin-layer.js`)
+### Perlin noise and randomness (`perlin-layer.js` & `plants.js`)
 
 Randomness decides everything that stays fixed for one viewing; Perlin noise drives everything that moves.
 
@@ -57,7 +57,7 @@ Timers and events drive the wilting of flower A.
 
 ## AI acknowledgement
 
-- **Jackie (`perlin-layer.js`, `time-mechanic.js`, `plants.js`, `sketch.js`):** parts of this code were generated with the help of Claude (Anthropic) and then edited. Claude helped structure the classes, write the petal-shape, noise and timer logic, and debug the layout.
+- **Jackie (`perlin-layer.js`,`plants.js`, `sketch.js`):** parts of this code were generated with the help of Claude and then edited. Claude helped structure the classes, write the petal-shape, noise and debug the layout.
 - [Teammates: add your own acknowledgement, or "None".]
 
 ## External references
