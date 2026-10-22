@@ -22,7 +22,7 @@ Open `index.html` in a browser (an internet connection is needed, because p5.js 
 | --- | --- | --- |
 | Perlin noise and randomness | Jackie | `perlin-layer.js` & `plants.js`|
 | Time-based | Yeheng Li | `time-mechanic.js` |
-| Audio | [Rongwei Zhao] | `[audio-mechanic.js]` |
+| Audio | Rongwei Zhao | `[audio-mechanic.js]` |
 | User input | [name] | `[input-controls.js]` |
 
 `plants.js` holds the static stems. `sketch.js` brings all the scripts together.
@@ -51,6 +51,19 @@ Randomness decides everything that stays fixed for one viewing; Perlin noise dri
 - **Wilting:** when a self-drawing flower is complete, its `onCreated` event creates a `FlowerWilt`. Every dot gets a scheduled drop event (petal tips first, the centre last, in noisy patches); it then falls with gravity, drifts in the same wind as the leaves and fades out.
 - **Working with the other files:** `sketch.js` calls `FlowerDotAnimator.update()` and `NoisyFlower.draw()` every frame. So that the other team files stay unchanged, `time-mechanic.js` (loaded after `perlin-layer.js`) replaces these two methods with timed versions that still use the team's own pens, dots, noise and drawing code.
 
+ ### Audio (`audio-mechanic.js`) — Rongwei zhao
+
+**Music-driven flower movement.** My audio mechanic explores how sound can influence the visual behaviour of flowers. Instead of using music only as background sound, I use audio amplitude to create a direct relationship between sound intensity and flower size.
+
+The mechanic analyses the volume of the playing audio and maps it to a scaling factor. Quieter sounds produce smaller flower heads, while louder sounds cause the flowers to expand. Smoothing is applied to the scaling changes so that the movement feels organic rather than sudden or mechanical.
+
+- **Audio analysis:** the sound amplitude is measured continuously to determine the intensity of the music.
+- **Amplitude mapping:** audio levels are converted into flower-head scaling values.
+- **Smooth transitions:** interpolation (`lerp()`) reduces abrupt changes and creates a natural breathing or pulsing effect.
+- **Visual consistency:** flower heads respond to the music while the stems remain anchored in their original positions.
+- **Collaboration:** the audio mechanic is designed to work alongside the team's Perlin Noise and Time-based mechanics, allowing sound to influence the flowers without replacing their existing animations.
+
+The audio logic is contained in `audio-mechanic.js` so that it can be integrated into the shared `sketch.js` separately.
 ## Techniques
 
 - **Perlin noise (`noise()`)** for smooth, continuous movement; **`random()`** for one-off decisions.
@@ -60,12 +73,16 @@ Randomness decides everything that stays fixed for one viewing; Perlin noise dri
 - **Classes and composition:** flowers contain many pen or dot objects and update them every frame.
 - **Off-screen buffer (`createGraphics()`)** so flower A keeps its dot trail while the background redraws.
 - **Normalised coordinates and `windowResized()`** so the piece rescales to any window (Week 8).
+- **Audio amplitude analysis:** measuring sound intensity to drive visual changes.
+- **Mapping (`map()`):** converting audio levels into flower-head scaling values.
+- **Interpolation (`lerp()`):** smoothing size transitions to create organic, music-responsive movement.
 - [Teammates: add the techniques your mechanic uses.]
 
 ## AI acknowledgement
 
 - **Jackie (`perlin-layer.js`,`plants.js`, `sketch.js`):** parts of this code were generated with the help of Claude and then edited. Claude helped structure the classes, write the petal-shape, noise and debug the layout.
 - **Yeheng Li (`time-mechanic.js`):** I used Claude (Anthropic) only as a support tool while developing this mechanic. The creative direction and design decisions were mine: following my tutor's feedback, I chose the idea of four flowers keeping four different kinds of time, decided how each flower should bloom and wilt, and directed every change. Claude helped me explore options for the four bloom clocks (sundial, hourglass, ticking, heartbeat) and suggested code for them. After that, I personally re-checked, edited and tested all of the code line by line, adjusted it to fit our team's files, and only then committed it. I understand how every part of the code works and can explain it. The `Timer`, `WiltingDot` and `FlowerWilt` classes are my own earlier work. This is also noted in comments at the top of `time-mechanic.js`.
+- **Rongwei Zhao (`audio-mechanic.js`): I used ChatGPT (OpenAI) as a support tool while developing my Audio Mechanic. My creative direction was to make the flowers respond to music by changing their size according to sound intensity. I used AI assistance to troubleshoot compatibility with the team's existing code.
 - [Teammates: add your own acknowledgement, or "None".]
 
 ## External references
