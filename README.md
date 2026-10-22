@@ -20,7 +20,7 @@ Open `index.html` in a browser (an internet connection is needed, because p5.js 
 
 | Mechanic | Team member | Script |
 | --- | --- | --- |
-| Perlin noise and randomness | Jackie | `perlin-layer.js` |`plants.js` |
+| Perlin noise and randomness | Jackie | `perlin-layer.js`& `plants.js`|
 | Time-based | [name] | `time-mechanic.js` |
 | Audio | [name] | `[audio-mechanic.js]` |
 | User input | [name] | `[input-controls.js]` |
