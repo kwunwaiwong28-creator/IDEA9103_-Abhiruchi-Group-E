@@ -23,7 +23,7 @@ Open `index.html` in a browser (an internet connection is needed, because p5.js 
 | Perlin noise and randomness | Jackie | `perlin-layer.js` & `plants.js`|
 | Time-based | Yeheng Li | `time-mechanic.js` |
 | Audio | Rongwei Zhao | `[audio-mechanic.js]` |
-| User input | [name] | `[input-controls.js]` |
+| User input | HANGJING YE | `[input-controls.js]` |
 
 `plants.js` holds the static stems. `sketch.js` brings all the scripts together.
 
