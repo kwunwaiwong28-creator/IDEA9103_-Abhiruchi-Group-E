@@ -4,8 +4,8 @@
 
    IDEA
    Four flowers, four clocks. Each flower in the garden keeps a different kind of time, so each one
-   blooms in its own way. Once it is fully open it stays in bloom for a while, then wilts: its dots
-   dry and fall, and its stem and leaves dry and bend with it.
+   blooms in its own way. Once it is fully open it stays in bloom for a while, then wilts (the stem
+   wilts too), rests as a dry stem, and blooms again. The garden repeats this life cycle forever.
 
      SUNDIAL    top-left flower      all dot pens line up like one clock hand and sweep clockwise
      HOURGLASS  top-right flower     centre dots pile up like falling sand, then spikes break out
@@ -14,13 +14,13 @@
 
    LIFE CYCLE OF EVERY FLOWER (all driven by timers and scheduled events)
      bud -> BLOOM (its own clock) -> MATURE (stays open) -> WILT (dots dry and fall, stem bends)
-         -> only the dry stem is left
+         -> REST (only the dry stem) -> BLOOM again ...
 
    HOW IT WORKS WITH THE TEAM'S FILES
    - The flower shapes, colours, dots and Perlin-noise movement all come from perlin-layer.js
      (Perlin noise mechanic). Stems come from plants.js. Those files are NOT edited.
    - This file only decides WHEN dots appear, HOW FAR each petal or centre is open, and WHEN a
-     flower wilts. It connects to the team code in section 9 (see notes there).
+     flower wilts and regrows. It connects to the team code in section 9 (see notes there).
    - The self-drawing flowers fire `onCreated` when complete (set up in sketch.js); that event
      starts a FlowerWilt here.
 
@@ -29,24 +29,21 @@
      Section 2  Helper functions ................ clockNow(), smooth01(), mixRgb(), rgbOf()
      Section 3  class Timer ..................... at(seconds, action), start(), seconds(), update()
      Section 4  Bloom clocks .................... CLOCKS, clockOf(), penBudget(), lastHeartBeat()
-     Section 5  class StemWilt .................. apply(dryness)
+     Section 5  class StemWilt .................. apply(dryness), restore()
      Section 6  class WiltingDot ................ drop(), colourAt(), update(), draw()
-     Section 7  class FlowerWilt ................ mature -> wilt for a self-drawing flower
-     Section 8  class NoisyFlowerLife ........... bloom -> mature -> wilt for a noisy flower
+     Section 7  class FlowerWilt ................ wilt -> rest -> regrow for a self-drawing flower
+     Section 8  class NoisyFlowerLife ........... bloom -> mature -> wilt -> rest for a noisy flower
      Section 9  Connecting to the team's classes  bloomUpdate(), lifeDraw()
 
    VARIABLES
      Global   : the settings in section 1, CLOCKS, clockZero, STEM_HOME, LEAF_HOME
-     Instance : e.g. Timer.events, FlowerWilt.phase, NoisyFlowerLife.wiltStarted, WiltingDot.state
+     Instance : e.g. Timer.events, FlowerWilt.phase, NoisyFlowerLife.cycle, WiltingDot.state
      Local    : values worked out fresh each frame, e.g. tau, budget, dryness, pulse, wind
 
    AI ACKNOWLEDGEMENT
-   Parts of this code were written with the help of Claude (Anthropic) and then edited by Yeheng Li.
-   Yeheng Li wrote the first version (Timer, WiltingDot, FlowerWilt), chose the idea of four flowers
-   keeping four kinds of time, and decided how each flower blooms, stays open and wilts. Claude
-   helped suggest code for the four bloom clocks, the full-bloom pause and the wilting of the stems,
-   leaves and noisy flowers. Yeheng Li re-checked, edited and tested all of the code before
-   committing it.
+   Parts of this code were generated with the help of Claude (Anthropic) and then edited by Yeheng Li.
+   Yeheng Li wrote the first version (Timer, WiltingDot, FlowerWilt), designed the four bloom clocks,
+   the wilting and the life cycle, and re-checked, edited and tested all of the code before committing it.
 
    REFERENCES
    - p5.js reference: https://p5js.org/reference/ (millis, noise, random, lerp, push/pop, scale, image)
@@ -65,13 +62,15 @@ const DROOP = 0.12;               // how far the petals sag before their dots fa
 
 // Life cycle
 const MATURE_SECONDS = 6;         // a grown flower stays in full bloom before wilting (time for the audio mechanic)
+const REST_SECONDS = 2;           // the bare, dry stem stays on screen before the flower blooms again
+const RECOVER_SECONDS = 3;        // the stem turns green and straightens again as the next bloom starts
 
 // Stem and leaves
 const STEM_LEAN = 0.05;           // how far a dry stem bends sideways (fraction of canvas width)
 const STEM_SAG = 0.035;           // how far a dry stem top sinks (fraction of canvas height)
 const WILT_LEAVES = true;         // leaves on a wilting stem dry out and droop with it
 
-// Bloom clocks: when each flower starts (seconds) and how long its bloom takes
+// Bloom clocks: when each flower first starts (seconds) and how long its bloom takes
 const CLOCKS = {
   sundial:   { start: 0.0, bloom: 8 },
   hourglass: { start: 2.5, bloom: 10 },
@@ -207,13 +206,13 @@ function lastHeartBeat(tau, bloomSeconds) {
 
 
 /* -------------------------------------------------------------------------------------------------
-   5. STEM WILT  -  the stem (and its leaves) dries and bends with its flower
+   5. STEM WILT  -  the stem (and its leaves) dries, bends and recovers with its flower
    The stem and leaf objects belong to plants.js / perlin-layer.js. This class only changes their
-   position and colour values while a flower wilts, always starting from the original values.
+   position and colour values while a flower wilts, and always restores the original values.
 ------------------------------------------------------------------------------------------------- */
 
 // Original stem and leaf values, recorded the first time they are seen,
-// so the drying is always worked out from the fresh green stem.
+// so every life cycle returns to them exactly.
 const STEM_HOME = new Map();
 const LEAF_HOME = new Map();
 
@@ -288,6 +287,20 @@ class StemWilt {
           vein: mixRgb(item.colours.vein, DRY_LEAF.vein, k)
         };
       }
+    }
+  }
+
+  // Put the stem and leaves back exactly as they were.
+  restore() {
+    if (!this.stem) return;
+    this.stem.topX = this.home.topX;
+    this.stem.topY = this.home.topY;
+    this.stem.colours = this.home.colours;
+    for (const item of this.leaves) {
+      item.leaf.px = lerp(this.home.topX, this.stem.bottomX, item.f);
+      item.leaf.py = lerp(this.home.topY, this.stem.bottomY, item.f);
+      item.leaf.tilt = item.tilt;
+      item.leaf.colours = item.colours;
     }
   }
 }
@@ -376,20 +389,41 @@ class WiltingDot {
 
 
 /* -------------------------------------------------------------------------------------------------
-   7. FLOWER WILT  -  what happens to a self-drawing flower (sundial, heartbeat) after it is complete
+   7. FLOWER WILT  -  life cycle of a self-drawing flower (sundial, heartbeat) after it is complete
    Started by the flower's onCreated event. Timeline (seconds after onCreated):
      0 .. MATURE                     full bloom
      MATURE .. +WILT                 every dot has a scheduled drop event; petal tips first, centre last
-     after that                      only the dry stem is left
+     +WILT .. +REST                  rest: only the dry stem
+     then                            regrow event: the flower draws itself again with its bloom clock
 ------------------------------------------------------------------------------------------------- */
+
+// Start a self-drawing flower again with the same shape and colour pens.
+// New noise seeds mean each new bloom is slightly different, like a real flower.
+function redrawFlower(flower) {
+  flower.dots = [];
+  flower.finished = false;
+  for (const pen of flower.pens) {
+    pen.angle = random(TWO_PI);
+    pen.direction = random([-1, 1]);
+    pen.distortSeed = random(1000);
+    pen.sizeSeed = random(1000);
+    pen.turned = 0;
+    pen.finished = false;
+  }
+  flower.resetLayer();
+  flower.bloomStart = clockNow();    // replay this flower's bloom clock
+  flower.clockReady = false;
+}
 
 class FlowerWilt {
   constructor(flower) {
     this.flower = flower;
     this.timer = new Timer();
+    this.gone = false;
     this.lastWiltTime = 0;
     this.stemWilt = new StemWilt(flower);
-    this.phase = "wilt";             // wilt -> dry
+    this.phase = "wilt";             // wilt -> rest -> regrow
+    this.regrowStart = 0;
 
     // copy every dot of the finished flower into a WiltingDot
     let patchSeed = random(1000);
@@ -412,7 +446,21 @@ class FlowerWilt {
 
     // event: every dot has fallen, only the dry stem is left
     this.timer.at(MATURE_SECONDS + WILT_SECONDS, () => {
-      this.phase = "dry";
+      this.phase = "rest";
+    });
+
+    // event: regrow - the flower starts drawing itself again and the stem recovers
+    this.timer.at(MATURE_SECONDS + WILT_SECONDS + REST_SECONDS, (now) => {
+      this.phase = "regrow";
+      this.regrowStart = now;
+      redrawFlower(this.flower);
+    });
+
+    // event: cycle complete - the stem is handed back exactly as it was.
+    // When the new bloom finishes, onCreated fires again and a new FlowerWilt starts.
+    this.timer.at(MATURE_SECONDS + WILT_SECONDS + REST_SECONDS + RECOVER_SECONDS, () => {
+      this.stemWilt.restore();
+      this.gone = true;
     });
 
     this.timer.start();
@@ -420,15 +468,22 @@ class FlowerWilt {
 
   // Called every frame from sketch.js.
   update(wind) {
+    if (this.gone) return;
+
     this.timer.update();
+    if (this.gone) return;
 
     let now = this.timer.seconds();
     let wiltTime = max(0, now - MATURE_SECONDS);      // 0 while the flower is still in full bloom
     let dt = wiltTime - this.lastWiltTime;
     this.lastWiltTime = wiltTime;
 
-    // the stem dries along with the flower and stays dry
-    this.stemWilt.apply(min(1, wiltTime / WILT_SECONDS));
+    // the stem dries along with the flower, then recovers as it regrows
+    if (this.phase === "regrow") {
+      this.stemWilt.apply(1 - (now - this.regrowStart) / RECOVER_SECONDS);
+    } else {
+      this.stemWilt.apply(wiltTime / WILT_SECONDS);
+    }
 
     if (this.phase !== "wilt") return;
 
@@ -446,8 +501,8 @@ class FlowerWilt {
 
 
 /* -------------------------------------------------------------------------------------------------
-   8. NOISY FLOWER LIFE  -  life of a noisy flower (hourglass, ticking)
-   bloom (its own clock) -> MATURE seconds in full bloom -> WILT seconds of wilting -> dry stem.
+   8. NOISY FLOWER LIFE  -  full life cycle of a noisy flower (hourglass, ticking)
+   One period = bloom + MATURE + WILT + REST, repeated forever.
    The flower is always drawn by perlin-layer.js's own draw(); this class only lends it a
    temporary shape, colours and set of visible dots for each moment (see drawNoisyAs()).
 ------------------------------------------------------------------------------------------------- */
@@ -490,8 +545,10 @@ class NoisyFlowerLife {
     this.flower = flower;
     this.clockName = clockOf(flower);
     this.clock = CLOCKS[this.clockName];
+    this.period = this.clock.bloom + MATURE_SECONDS + WILT_SECONDS + REST_SECONDS;
     this.stemWilt = new StemWilt(flower);
 
+    this.cycle = -1;                   // which life we are in (0, 1, 2 ...)
     this.wiltStarted = false;
     this.falling = [];                 // WiltingDots that have let go
     this.lastWiltTime = 0;
@@ -602,23 +659,33 @@ class NoisyFlowerLife {
   // Called every frame instead of the noisy flower's plain draw().
   draw() {
     let flower = this.flower;
-    let tau = clockNow() - this.clock.start;              // seconds since this flower's life began
+    let now = clockNow() - this.clock.start;
 
-    if (tau < 0) {                                        // a closed green bud waiting for its turn
+    if (now < 0) {                                        // a closed green bud waiting for its turn
       drawNoisyAs(flower, {
         core: 0.2, open: () => 0, petal: this.colour(BUD_GREEN), coreColour: this.colour(BUD_GREEN), dots: []
       });
       return;
     }
 
+    let cycle = floor(now / this.period);
+    let tau = now - cycle * this.period;                  // seconds into this life
     let bloomSeconds = this.clock.bloom;
 
-    // stem: green until wilting begins, then dries with the flower and stays dry
+    if (cycle !== this.cycle) {                           // event: a new life begins
+      this.cycle = cycle;
+      for (const d of flower.dots) d.colour = d.homeColour;
+      this.wiltStarted = false;
+    }
+
+    // stem: dries during the wilt, stays dry while resting, recovers as the next bloom starts
     let dryness = 0;
-    if (tau >= bloomSeconds + MATURE_SECONDS) {
+    if (tau < bloomSeconds) {
+      dryness = cycle > 0 ? 1 - tau / RECOVER_SECONDS : 0;
+    } else if (tau >= bloomSeconds + MATURE_SECONDS) {
       dryness = min(1, (tau - bloomSeconds - MATURE_SECONDS) / WILT_SECONDS);
     }
-    this.stemWilt.apply(dryness);
+    this.stemWilt.apply(max(0, dryness));
 
     if (tau < bloomSeconds) {
       drawNoisyAs(flower, this.bloomLook(tau / bloomSeconds));      // BLOOM
@@ -629,7 +696,7 @@ class NoisyFlowerLife {
       return;
     }
 
-    // WILT, then only the dry stem
+    // WILT, then REST
     let secs = tau - bloomSeconds - MATURE_SECONDS;
     if (!this.wiltStarted) {                              // event: wilting begins
       this.startWilt();
@@ -667,7 +734,8 @@ function bloomUpdate(t) {
 
   let clockName = clockOf(this);
   let clock = CLOCKS[clockName];
-  let tau = clockNow() - clock.start;                   // seconds since this bloom began
+  if (this.bloomStart === undefined) this.bloomStart = clock.start;
+  let tau = clockNow() - this.bloomStart;               // seconds since this bloom began
 
   let cx = this.nx * width;
   let cy = this.ny * height;

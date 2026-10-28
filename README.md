@@ -8,7 +8,7 @@ Open `index.html` in a browser (an internet connection is needed, because p5.js 
 
 ## Interaction instructions
 
-- **Watch:** the four flowers bloom one after another, each keeping a different kind of time (see *Time-based* below). Each flower then stays in full bloom for 6 seconds and wilts over 15 seconds: its colours fade to dry browns, its dots fall away in the wind, and its stem and leaves dry and bend with it, until only dry stems are left. Meanwhile dots drift inside the flowers, leaves sway in the wind and the background lines wander.
+- **Watch:** the four flowers bloom one after another, each keeping a different kind of time (see *Time-based* below). Each flower then stays in full bloom for 6 seconds and wilts over 15 seconds: its colours fade to dry browns, its dots fall away in the wind, and its stem and leaves dry and bend with it. After 2 seconds as a dry stem, the stem turns green again and the flower blooms again with its own clock, so the garden repeats this life cycle forever. Meanwhile dots drift inside the flowers, leaves sway in the wind and the background lines wander.
 - **Refresh the page:** every refresh generates a new composition (new colours, petal counts and dot layouts) and starts the cycle again.
 - [Teammates: add how to interact with your mechanic, e.g. "move the mouse", "click to start audio".]
 
@@ -40,7 +40,7 @@ Randomness decides everything that stays fixed for one viewing; Perlin noise dri
 
 **Four flowers, four clocks.** Timers and scheduled events decide when and how each flower blooms, how long it stays open, and when it wilts. Each flower keeps a different kind of time, so each one opens in its own way. The flower shapes, colours, dots and noise movement all come from `perlin-layer.js`; the time mechanic decides *when* dots appear, *how far* each petal or centre is open, and *when* everything dries and falls.
 
-Life of every flower: bud → **bloom** (its own clock) → **full bloom** (6 s) → **wilt** (15 s; dots dry and fall, stem and leaves bend) → dry stem.
+Life of every flower: bud → **bloom** (its own clock) → **full bloom** (6 s) → **wilt** (15 s; dots dry and fall, stem and leaves bend) → **rest** (2 s, dry stem) → bloom again, forever.
 
 | Flower | Clock | How it blooms | Timing |
 | --- | --- | --- | --- |
@@ -54,6 +54,7 @@ Life of every flower: bud → **bloom** (its own clock) → **full bloom** (6 s)
 - **Wilting (self-drawing flowers):** when a self-drawing flower is complete, its `onCreated` event creates a `FlowerWilt`. After the full-bloom pause, every dot gets a scheduled drop event (petal tips first, the centre last, in noisy patches); it then falls with gravity, drifts in the same wind as the leaves and fades out.
 - **Wilting (noisy flowers):** `NoisyFlowerLife` uses the same drop rule for the two noisy flowers. Their colours fade to brown, the dots let go and fall, and the petals then shrivel back into the centre.
 - **Stem and leaves:** `StemWilt` dries each flower's stem and leaves together with the flower: the stem bends outwards and sinks, the leaves droop and turn brown. The original stem and leaf values are recorded first (`STEM_HOME`, `LEAF_HOME`), so the team's objects are only changed, never replaced.
+- **Rest and regrow:** after the wilt, a scheduled event leaves only the dry stem for `REST_SECONDS` (2 s). The next event restarts the flower's own bloom clock with new noise seeds, so every new bloom is slightly different, while the stem and leaves recover over `RECOVER_SECONDS` (3 s) and return exactly to their original values. The cycle repeats forever.
 - **Working with the other files:** `sketch.js` calls `FlowerDotAnimator.update()` and `NoisyFlower.draw()` every frame. So that the other team files stay unchanged, `time-mechanic.js` (loaded after `perlin-layer.js`) replaces these two methods with timed versions that still use the team's own pens, dots, noise and drawing code.
 
  ### Audio (`audio-mechanic.js`) — Rongwei zhao
@@ -87,7 +88,7 @@ The audio logic is contained in `audio-mechanic.js` so that it can be integrated
 ## AI acknowledgement
 
 - **Jackie (`perlin-layer.js`,`plants.js`, `sketch.js`):** parts of this code were generated with the help of Claude and then edited. Claude helped structure the classes, write the petal-shape, noise and debug the layout.
-- **Yeheng Li (`time-mechanic.js`):** parts of this code were written with the help of Claude and then edited by me. I wrote the first version myself (`Timer`, `WiltingDot`, `FlowerWilt`), chose the idea of four flowers keeping four kinds of time, and decided how each flower blooms, stays open and wilts. Claude helped suggest code for the four bloom clocks, the full-bloom pause and the wilting of the stems, leaves and noisy flowers. I re-checked, edited and tested all of the code myself before committing it.
+- **Yeheng Li (`time-mechanic.js`):** parts of this code were generated with the help of Claude and then edited by me. I wrote the first version (`Timer`, `WiltingDot`, `FlowerWilt`) myself, designed the four bloom clocks, the wilting and the life cycle, and re-checked, edited and tested all of the code before committing it.
 - **Rongwei Zhao (`audio-mechanic.js`): I used ChatGPT (OpenAI) as a support tool while developing my Audio Mechanic. My creative direction was to make the flowers respond to music by changing their size according to sound intensity. I used AI assistance to troubleshoot compatibility with the team's existing code.
 - [Teammates: add your own acknowledgement, or "None".]
 
