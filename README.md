@@ -10,16 +10,29 @@ Open `index.html` in a browser (an internet connection is needed, because p5.js 
 
 - **Watch:** the four flowers bloom one after another, each keeping a different kind of time (see *Time-based* below). Each flower then stays in full bloom for 6 seconds and wilts over 15 seconds: its colours fade to dry browns, its dots fall away in the wind, and its stem and leaves dry and bend with it. After 2 seconds as a dry stem, the stem turns green again and the flower blooms again with its own clock, so the garden repeats this life cycle forever. Meanwhile dots drift inside the flowers, leaves sway in the wind and the background lines wander.
 - **Refresh the page:** every refresh generates a new composition (new colours, petal counts and dot layouts) and starts the cycle again.
-- **Click a flower (user input):** move the mouse over a flower; a ring of small dots circles it to show it can be clicked. Click or tap it: the flower bounces gently and a few of its dots are released around it (or rings of dots spread out from it), without covering the flower.
+- **Move the mouse (user input):** the mouse is a small dot with a short trail of dots. It grows and takes the colour of anything you can touch; over a flower, a ring of small dots also circles it.
+- **Click a flower:** Click or tap it: the flower bounces gently and a few of its dots are released around it (or rings of dots spread out from it), without covering the flower.
 - **Click a leaf:** the leaf is flicked away from your finger and swings back and forth until it settles into the wind again.
 - **Click a stem:** the whole plant is pushed away from your finger and sways from its base, carrying its flower and leaves; a push higher up the stem moves it more.
+- **Watch the net:** every click sends a wave of colour out through the background lines, in the colour of what you touched.
 - **Control panel (bottom left):** choose *Random* or one of the three flower effects (Breeze, Pollen, Ripple), and drag *Click strength* to make the motion gentler or stronger.
 - **Keyboard:** press Tab to focus the canvas, use the arrow keys to choose a flower, and press Enter or Space to trigger it.
 - [Teammates: add how to interact with your mechanic, e.g. "click to start audio".]
 
 ## Inspiration
 
-[Group: describe the source artwork (title, year, Yayoi Kusama) and how it shaped the approach. Credit the artwork with a link.]
+**Source artwork:** Yayoi Kusama, *Flowers* (2015), painting. Artist's official website: https://yayoi-kusama.jp/ — [Group: add the link to the exact image source of the painting here.]
+
+The painting shows four sunflower-like flowers rising from bold green stems and leaves on a dark ground covered with a fine net of small marks. Every part of it is built from dots: the spiky petals are lined with rows of dots, and each flower's centre is a set of concentric rings of dots in contrasting colours. The colours are flat and bright — crimson, orange-gold, white, sky blue and violet against the near-black background.
+
+These features shaped our approach:
+
+- **Dots as the building block.** Instead of drawing solid shapes, our flowers are made of dots, as in Kusama's work: the self-drawing flowers (`FlowerDotAnimator`) are traced dot by dot along their petal and ring outlines, and the noisy flowers (`NoisyFlower`) are filled with hundreds of drifting dots.
+- **Rings in the centres and spiky petals.** The concentric rings of the flower centres became separate dot pens that circle the core, and the spiky and rounded petal shapes are generated from an outline function with a random petal count, so each refresh gives a new flower in the same spirit.
+- **The painted net.** The fine mesh in the background became the Perlin-noise net of wavy lines (`PerlinBackground`).
+- **Four flowers, one palette.** Like the painting, the composition has four flowers of different sizes on tall stems, and our palette is taken from the painting's colours.
+
+Our reinterpretation is not a copy: we simplified the shapes into flat vector forms and asked what would happen if Kusama's still image were alive. Each mechanic answers that question in its own way — the flowers keep their own time as they bloom, wilt and regrow (time), their dots drift and the net wanders (Perlin noise and randomness), they pulse with music (audio), and they respond to the viewer's touch (user input). For the user input mechanic we were also inspired by teamLab's *Flowers and People, Cannot be Controlled but Live Together, for Eternity* (2014, Tokyo; https://www.teamlab.art/), where the presence of visitors changes how the flowers behave.
 
 ## Mechanic ownership
 
@@ -85,7 +98,7 @@ The audio logic is contained in `audio-mechanic.js` so that it can be integrated
 | --- | --- |
 | 01 Breeze | A few dots are blown off the far edge of the petals, away from the click, and drift on the wind. A gust goes through the whole garden: the leaves and the falling wilted dots sway with it. |
 | 02 Pollen | A few dots pop off the petal edge and fall slowly with a sideways flutter, like pollen shaken from a flower. |
-| 03 Ripple | Rings of small dots spread out from the flower's edge, following the shape of its petals, like a drop on a pond. |
+| 03 Ripple | Rings of small dots spread out from the flower's edge, following the shape of its petals, like a drop on a pond. Each ripple spreads a little further or less far, at random. |
 
 The loose dots are small, solid and in the flower's own petal colours (no blur or glow), so they read as Kusama-style dots. They start on the petal edge and only move outwards, so they never cover the flower.
 
@@ -93,11 +106,41 @@ The loose dots are small, solid and in the flower's own petal colours (no blur o
 
 **Clicking a stem.** Clicking a stem pushes the whole plant. The stem leans from its base on a slower, heavier spring (about 0.9 swings per second) and sways back and forth before it settles. Its flower head and its leaves are carried with it (a point further up the stem moves further), and the leaves give a small flutter of their own as the stem starts to move. The stem top is moved only while `Stem.draw()` runs and is put straight back afterwards, so `time-mechanic.js` still controls the real stem when it wilts and bends it.
 
+**From the Week 9 plan to the final mechanic.** My Week 9 concept (inspired by teamLab's *Flowers and People, Cannot be Controlled but Live Together, for Eternity*, 2014) planned three inputs: the cursor's proximity enlarging nearby dots, a click sending a radial shockwave through the dots, and mouse speed controlling the strength. Testing it inside the team's garden changed the design:
+
+| Version | What it did | What I learned |
+| --- | --- | --- |
+| 1 | Copied the clicked flower's dots and moved them a little | The effect was too faint: the real flower was still drawn underneath, so a click felt like nothing happened. |
+| 2 | Faded the real flower and sent its dots far out (drift, vortex, burst, weaving) | Clearly visible, but it felt like an explosion: glowing, blurred dots filled the screen. |
+| 3 | Softer, slower motions (breeze, diffuse, ripple, eddy) | Calmer, but the dots still covered the flower, so the time and noise mechanics behind them could no longer be seen. |
+| 4 (final) | The flower only bounces; a few small, crisp dots leave from its edge; leaves and stems swing on springs | The other mechanics stay fully visible, and the garden reacts like real plants. |
+
+From this I kept three rules for the final version: **never hide another mechanic** (nothing is drawn over a flower), **keep Kusama's look** (small, solid dots instead of blur or glow), and **move like a real plant** (springs that swing and settle, not instant jumps). The shockwave idea survives as the Ripple effect, which now travels outwards from the flower instead of through it. The proximity idea became the dot cursor and the dotted hover ring, which show what can be clicked without changing the flowers. I replaced mouse speed with the *Click strength* slider, because a fast flick of the mouse was hard to control and made the effect unpredictable.
+
+**How the code is organised.** Everything lives in `user-input.js` inside one closure, so none of its names can clash with teammates' code. It is split into small functions by job:
+
+| Part | Main functions | Job |
+| --- | --- | --- |
+| Springs | `stepSpring()` | One shared damped-spring step used by leaves, stems and the flower bounce. |
+| Flowers | `flowerAt()`, `trigger()`, `bounceFlower()`, `withBounce()` | Find the clicked flower, start an effect, bounce the head. |
+| Edge effects | `makeLooseDots()`, `looseDotAt()`, `drawEffects()`, `drawRipple()` | Create the loose dots, move them over time, draw them and the ripple rings. |
+| Wind | `wrapWind()`, `currentGust()` | Add the Breeze gust to the team's shared wind. |
+| Leaves | `leafAt()`, `leafHit()`, `kickLeaf()`, `wrapLeaves()` | Test clicks against the rotated leaf, flick it, add its swing when it is drawn. |
+| Stems | `stemAt()`, `alongStem()`, `pushStem()`, `wrapStems()` | Test clicks against the stem line, push it, carry its flower and leaves. |
+| Colour wave | `startColourWave()`, `waveOnLine()`, `wrapBackground()` | Start a wave on a click and tint the background lines as it passes. |
+| Interface | `drawCursor()`, `cursorTarget()`, `drawHover()`, `ringScale()`, `jumpRing()`, `makeControls()` | Dot cursor, hover ring (and its random size on each click) and the control panel. |
+
+**The colour wave.** Every click also sends a wave of colour through the background net, in the colour of what was clicked (the flower's main petal colour, or the leaf's or stem's green). The wave front travels outwards from the click; each wavy line lights up and thickens as the front reaches it, then fades back to its own blue. A vertical line is reached after the front has travelled its horizontal distance from the click, and a horizontal line its vertical distance, so the colour runs out along the rows and columns like dye spreading through a woven net. This ties the click to Kusama's painted net and to Jackie's Perlin background, while the line colours and widths are only changed while `PerlinBackground.draw()` runs and are restored straight after.
+
+**The dot cursor.** The system arrow is hidden and the mouse becomes a small Kusama-style dot with a trail of six smaller, fainter dots. Each trail dot moves 45 % of the way towards the one in front every frame, so the trail lags and curls when the mouse turns. The dot is plain and solid, with no outline. Over a flower, leaf or stem it grows and eases into that thing's colour, so the viewer can see what is touchable before clicking; a click squeezes the dot on a quick spring and it pops back. The cursor hides when the pointer leaves the canvas or when the keyboard is used.
+
+**The hover ring.** Over a flower, a ring of small dots slowly turns around it. Every click on a flower makes the ring jump to a new random size (1.05–1.35 × the flower's radius, always at least 0.1 away from the last size), so it is sometimes big and sometimes small. A spring carries it to the new size with a small overshoot and wobble, and between clicks it breathes slowly in and out. A bigger ring gets more dots, so the spacing stays even.
+
 - **Hit test:** the click position is turned into 0–1 canvas coordinates and compared with each flower's centre and radius (`flowerAt()`) with each leaf's rotated shape (`leafAt()`) and with each stem as a line segment (`stemAt()`), so clicking still works after the window is resized.
 - **Bounce without hiding:** the flower head is scaled around its own centre by a second damped spring, by wrapping the existing draw methods (`FlowerDotAnimator.update`, `NoisyFlower.draw`, `FlowerWilt.update`) without editing them, the same pattern `time-mechanic.js` uses. Nothing is faded or covered.
 - **Sharing the wind:** Breeze wraps `windStrength()` from `perlin-layer.js` and adds a gust while it plays, so the garden reacts as one.
 - **Soft motion:** `easeInOutSine` gives the gust and the breeze a soft start and stop; `noise()` gives each loose dot a wandering path; pollen falls with a simple gravity curve.
-- **Feedback:** a ring of small dots slowly circles the flower under the mouse, the cursor changes over flowers, leaves and stems, and the panel names the effect.
+- **Feedback:** the dot cursor grows and changes colour over anything touchable, a ring of small dots slowly circles the flower under the mouse, and the panel names the effect.
 - **Accessibility:** keyboard control (arrow keys + Enter), `aria-label`s, and smaller motion when the system asks for reduced motion.
 
 ## Techniques
@@ -127,7 +170,7 @@ The loose dots are small, solid and in the flower's own petal colours (no blur o
 - **Jackie (`perlin-layer.js`,`plants.js`, `sketch.js`):** parts of this code were generated with the help of Claude and then edited. Claude helped structure the classes, write the petal-shape, noise and debug the layout.
 - **Yeheng Li (`time-mechanic.js`):** parts of this code were generated with the help of Claude and then edited by me. I wrote the first version (`Timer`, `WiltingDot`, `FlowerWilt`) myself, designed the four bloom clocks, the wilting and the life cycle, and re-checked, edited and tested all of the code before committing it.
 - **Rongwei Zhao (`audio-mechanic.js`): I used ChatGPT (OpenAI) as a support tool while developing my Audio Mechanic. My creative direction was to make the flowers respond to music by changing their size according to sound intensity. I used AI assistance to troubleshoot compatibility with the team's existing code.
-- **Hangjing Ye (`user-input.js`):** I chose the idea of touching the garden (flowers that bounce and shed dots, leaves that swing, stems that sway), the effects and the control panel, and I asked for the changes after testing each version (softer motion, smaller crisp dots, never covering the other mechanics). The first version (click detection, panel and copying the dots) was written with help from ChatGPT (OpenAI). Claude (Anthropic) helped me rewrite it: the flower bounce, the three edge effects (Breeze, Pollen, Ripple), the gust added to the shared wind, the leaf spring, the stem sway, the dotted hover ring and keyboard control. I tested every effect in the browser and edited the code; the same note is in the comments at the top of the file.
+- **Hangjing Ye (`user-input.js`):** I chose the idea of touching the garden (flowers that bounce and shed dots, leaves that swing, stems that sway, a net that changes colour, a dot as the mouse), the effects and the control panel, and I asked for the changes after testing each version (softer motion, smaller crisp dots, never covering the other mechanics). The first version (click detection, panel and copying the dots) was written with help from ChatGPT (OpenAI). Claude (Anthropic) helped me rewrite it: the flower bounce, the three edge effects (Breeze, Pollen, Ripple), the gust added to the shared wind, the leaf spring, the stem sway, the colour wave, the dot cursor, the dotted hover ring and keyboard control. I tested every effect in the browser and edited the code; the same note is in the comments at the top of the file.
 - [Teammates: add your own acknowledgement, or "None".]
 
 ## External references
