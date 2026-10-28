@@ -19,6 +19,14 @@
  * Clicking a LEAF flicks it: it swings on a damped spring (like a real leaf
  * flicked with a finger) and settles back into the shared wind.
  *
+ * Every click also sends a COLOUR WAVE through the background net: the
+ * wavy lines light up in the colour of what was clicked (the flower's petal
+ * colour, green for a leaf or stem) as the wave passes, then fade back.
+ *
+ * The mouse itself is a DOT: the system arrow is hidden and replaced by a
+ * small Kusama-style dot with a short trail of smaller dots. It grows over
+ * anything that can be touched and squeezes then springs back on a click.
+ *
  * Clicking a STEM pushes the whole plant: the stem leans from its base and
  * sways back and forth on a slower spring, carrying its flower head and its
  * leaves with it, and the leaves give a small flutter of their own.
@@ -33,6 +41,9 @@
  *     perlin-layer.js already uses (windStrength() and WindLeaf.draw()).
  *   - The stem sway moves the stem top only while Stem.draw() runs and puts
  *     it straight back, so time-mechanic.js still controls the real stem.
+ *   - The colour wave changes each background line's colour only while
+ *     PerlinBackground.draw() runs, then restores it, so the net's own
+ *     colours and noise movement are untouched.
  *   - setup() and draw() from sketch.js are wrapped, not replaced.
  *
  * Controls (panel, bottom left): choose a flower effect or "Random", and set
@@ -51,7 +62,7 @@
  * AI acknowledgement: the first version (click detection, control panel,
  * copying the dots) was written with help from ChatGPT (OpenAI). The later
  * versions (the flower bounce, the three edge effects, the wind gust, the
- * leaf spring, the stem sway, the dotted hover ring and the keyboard controls) were written
+ * leaf spring, the stem sway, the colour wave, the dot cursor, the dotted hover ring and the keyboard controls) were written
  * with help from Claude (Anthropic), then tested and edited by me.
  */
 
@@ -59,25 +70,76 @@
   'use strict';
 
   // ---------------------------------------------------------------- settings
+  // The three flower effects. "Random" in the panel picks one per click.
   const EFFECTS = ['breeze', 'pollen', 'ripple'];
   const LABELS = { breeze: 'Breeze', pollen: 'Pollen', ripple: 'Ripple' };
 
+  // Timing and size of the flower effects. LIFETIME is long enough for the
+  // dots to travel and fade, short enough that repeated clicks feel responsive.
   const LIFETIME = 3400;        // ms for one flower effect
   const LOOSE_DOTS = 46;        // dots released from the petal edge per click
   const DOT_SCALE = 0.55;       // loose dots are drawn smaller than the originals
   const GUST = 1.1;             // extra wind added to windStrength() by BREEZE
 
+  // Colour wave through the background net (sizes as fractions of the canvas).
+  // The lit band is a Gaussian bump around the moving wave front.
+  const WAVE = {
+    life: 2200,                 // ms until the wave has passed and faded
+    reach: 1.25,                // how far it travels (1 = canvas width)
+    band: 0.11,                 // how wide the lit band is
+    tint: 0.95,                 // how strongly a line takes the colour (0–1)
+    thicken: 1.3                // a lit line also gets up to 1 + 1.3 = 2.3× thicker
+  };
+  const LEAF_TINT = [96, 176, 88];        // green from the team's LEAF_SETS
+
+  // Dot cursor (sizes as fractions of the canvas width).
+  const CURSOR = {
+    size: 0.016,                // the dot when over empty space
+    hoverSize: 0.026,           // the dot over a flower, leaf or stem
+    trail: 6,                   // number of trailing dots
+    follow: 0.45,               // how quickly each trail dot catches up (0–1)
+    press: { freq: 3.2, damping: 0.25, kick: -9 }   // squeeze-and-spring on a click
+  };
+
   // Springs: a damped oscillator  a'' = -w²·a - 2·z·w·a'
+  //   freq    — swings per second when it is let go (natural frequency)
+  //   damping — damping ratio z: 0 swings forever, 1 returns with no swing.
+  //             Small values (about 0.1) give several swings that die away,
+  //             which is how a real leaf or stem settles.
+  //   kick    — speed given by one click (units of the value being sprung)
+  // A leaf is light, so it swings fastest; a stem carries a flower, so it is
+  // the slowest and heaviest; the flower bounce is a quick, short "nod".
   const LEAF = { freq: 1.3, damping: 0.11, kick: 3.6 };     // leaf swing (radians)
   const BOUNCE = { freq: 2.4, damping: 0.16, kick: 1.1 };   // flower head (scale)
   const STEM = { freq: 0.9, damping: 0.08, kick: 0.3 };     // stem top (fraction of canvas width)
 
+  // Spring state is kept in Maps keyed by the team's own objects, so my
+  // mechanic never has to add or change properties on their classes.
+  // "angle" is the sprung value, "speed" its velocity, "last" the time of the
+  // last step (for real frame time).
   const leafSwing = new Map();   // leaf   → { angle, speed, last }
   const flowerBounce = new Map(); // flower → { angle, speed, last }  (angle = extra scale)
   const stemSway = new Map();     // stem   → { angle, speed, last }  (angle = sideways offset)
   const stemOfFlower = new Map(); // flower → its stem, found once at the start
 
+  // Dotted hover ring: its size changes on every click. The new size is
+  // picked at random (1.05–1.35 × the radius, never close to the last one),
+  // and a spring carries the ring there with a little overshoot, so it
+  // jumps bigger or smaller and wobbles before it settles. Between clicks it
+  // breathes slowly in and out.
+  const RING = {
+    min: 1.05, max: 1.35,       // ring radius range (× flower radius)
+    spring: { freq: 1.6, damping: 0.22 },
+    breathe: 0.05               // ± slow breathing on top
+  };
+  const ring = { goal: 1.18, angle: 1.18, speed: 0, last: 0 };
+
+  // Interaction state shared by the functions below.
   let active = [];              // running flower effects
+  let colourWaves = [];         // running colour waves: { x, y, rgb, start }
+  // The cursor: its trail positions, its current size (eased towards a
+  // target), the colour it takes over a flower, and its press spring.
+  const cursor = { trail: [], size: 0, rgb: [245, 242, 235], inside: false, press: { angle: 0, speed: 0, last: 0 } };
   let lastEffect = -1;
   let lastClickAt = -Infinity;
   let intensity = 1.0;
@@ -85,16 +147,24 @@
   let status = null;
   let keyboardIndex = -1;       // flower chosen with the arrow keys
 
+  // If the visitor's system asks for reduced motion, every effect is scaled
+  // down to about a third (see strength()).
   const reduceMotion = !!(
     window.matchMedia &&
     window.matchMedia('(prefers-reduced-motion: reduce)').matches
   );
 
   // ------------------------------------------------------------ small helpers
+  // clamp01: keeps a value between 0 and 1.
+  // easeInOutSine: 0 → 1 with a soft start and a soft stop (a half cosine).
+  // strength: the click strength from the slider, reduced for reduced motion.
   const clamp01 = (v) => Math.max(0, Math.min(1, v));
   const easeInOutSine = (v) => 0.5 - 0.5 * Math.cos(Math.PI * v);
   const strength = () => intensity * (reduceMotion ? 0.35 : 1);
 
+  // The team stores dot colours in two ways: FlowerDotAnimator dots have an
+  // [r, g, b] array, NoisyFlower dots have a p5 colour. This returns [r, g, b]
+  // for either, so loose dots can use the flower's real colours.
   function rgbOfDot(d) {
     if (Array.isArray(d.rgb)) return d.rgb;
     if (d.colour && typeof red === 'function') {
@@ -104,6 +174,12 @@
   }
 
   // One step of a damped spring, using the real frame time.
+  //   acceleration = -w² · angle - 2 · z · w · speed     (w = 2π · freq)
+  // The first term pulls back to rest (stiffness), the second slows it down
+  // (damping). Speed is updated first, then the angle (semi-implicit Euler),
+  // which stays stable at frame-rate steps. dt is capped at 50 ms so that a
+  // pause (e.g. switching browser tabs) does not make the spring jump.
+  // Returns true once it has settled, so the caller can forget the state.
   function stepSpring(state, spring, now) {
     const dt = Math.min(0.05, (now - state.last) / 1000);
     state.last = now;
@@ -115,6 +191,8 @@
   }
 
   // ------------------------------------------------------- the team's flowers
+  // All clickable flowers: the self-drawing ones and the noisy ones.
+  // typeof checks keep this file working even if a teammate renames a list.
   function flowers() {
     const list = [];
     if (typeof animatedFlowers !== 'undefined') list.push(...animatedFlowers);
@@ -123,6 +201,9 @@
   }
 
   // nx, ny are 0–1 canvas coordinates; returns the flower under that point.
+  // The vertical distance is multiplied by height / width because flower
+  // radii (nr) are measured as a fraction of the canvas WIDTH. The 1.15
+  // tolerance makes the petal tips count as part of the flower.
   function flowerAt(nx, ny) {
     let best = null;
     let bestDistance = Infinity;
@@ -137,6 +218,8 @@
   }
 
   // Edge of the flower (in flower units) in the direction of angle a.
+  // Both flower classes have outline(angle), which gives the petal edge as a
+  // multiple of the radius in that direction (spiky or rounded petals).
   function edgeOf(flower, a) {
     return typeof flower.outline === 'function' ? flower.outline(a) : 1;
   }
@@ -158,6 +241,9 @@
       }
       const cx = flower.nx * width;
       const cy = flower.ny * height;
+      // Scale around the flower's own centre: move the centre to the origin,
+      // scale, move back. "shift" moves the head with a swaying stem.
+      // push()/pop() keep this transform away from everything drawn later.
       push();
       translate(cx + shift, cy);
       scale(grow);
@@ -170,6 +256,9 @@
     };
   }
 
+  // Replace each drawing method with a wrapped version that still calls the
+  // team's original method. getFlower tells the wrapper which flower an
+  // object belongs to (a FlowerWilt draws on behalf of its flower).
   function wrapFlowerDrawing() {
     if (typeof FlowerDotAnimator !== 'undefined') {
       const p = FlowerDotAnimator.prototype;
@@ -187,6 +276,8 @@
     }
   }
 
+  // A click adds speed to the flower's spring (it does not set the size
+  // directly), so quick repeated clicks add up naturally.
   function bounceFlower(flower) {
     const state = flowerBounce.get(flower) || { angle: 0, speed: 0, last: performance.now() };
     state.speed += BOUNCE.kick * strength();
@@ -196,11 +287,15 @@
   // ------------------------------------------------ gust in the team's wind
   // windStrength(t) from perlin-layer.js drives the leaves and the falling
   // wilted dots. BREEZE adds a gust on top, in the direction it blows.
+  // p is the progress of the effect (0–1). The gust rises over the first
+  // 25 % and dies away over the remaining 75 %, like a real gust of wind.
   function gustEnvelope(p) {
     if (p <= 0 || p >= 1) return 0;
     return p < 0.25 ? easeInOutSine(p / 0.25) : easeInOutSine(1 - (p - 0.25) / 0.75);
   }
 
+  // Sum of all running breezes. Math.sign(windX) makes the gust blow left or
+  // right, the same way as the loose dots.
   function currentGust(now) {
     let gust = 0;
     for (const pulse of active) {
@@ -210,6 +305,8 @@
     return gust;
   }
 
+  // window.windStrength is the global function from perlin-layer.js, so
+  // replacing it here changes the wind for every leaf and falling dot.
   function wrapWind() {
     if (typeof window.windStrength !== 'function') return;
     const teamWind = window.windStrength;
@@ -222,6 +319,8 @@
   // The swing a WindLeaf draws is (wind · 0.28 + flutter) · lengthFactor
   // (perlin-layer.js). To add the spring angle without editing that file,
   // the wind passed to draw() is raised by the matching amount.
+  // Same as map(lengthN, 0.1, 0.4, 1, 0.55, true) in WindLeaf.draw():
+  // longer leaves swing less for the same wind.
   function leafLengthFactor(leaf) {
     const f = (leaf.lengthN - 0.1) / 0.3;
     return 1 + (0.55 - 1) * clamp01(f);
@@ -232,6 +331,9 @@
     return leaf.direction === 1 ? -leaf.tilt + swing : Math.PI + leaf.tilt - swing;
   }
 
+  // Each frame: step the leaf's spring, then draw the leaf with
+  //   wind + springAngle / (0.28 · lengthFactor)
+  // which makes WindLeaf.draw() rotate it by exactly springAngle more.
   function wrapLeaves() {
     if (typeof WindLeaf === 'undefined') return;
     const teamDraw = WindLeaf.prototype.draw;
@@ -260,6 +362,10 @@
   }
 
   // Is the canvas point (x, y) in pixels on this leaf? If so, return where.
+  // The click is turned into the leaf's own coordinates with two dot
+  // products: "along" runs from the stalk (0) to the tip (L), "across" is the
+  // distance from the middle vein. The leaf is widest in the middle, so the
+  // allowed width follows sin(π · along / L), plus 4 px for easier clicking.
   function leafHit(leaf, x, y) {
     const L = leaf.lengthN * width;
     const W = L * leaf.widthRatio;
@@ -274,6 +380,7 @@
     return { along: along / L, across };
   }
 
+  // Leaves drawn later are on top, so they are tested first.
   function leafAt(x, y) {
     if (typeof leaves === 'undefined') return null;
     for (let i = leaves.length - 1; i >= 0; i--) {   // top-most first
@@ -297,6 +404,8 @@
   // ----------------------------------------------------------- stems (sway)
   // A pushed stem leans from its base: the top moves sideways by the spring
   // offset, and anything further down moves less (nothing at the base).
+  // A rigid lean is a good match for a short sway and keeps Stem.draw()
+  // unchanged: only the top point moves, the base stays planted.
   function stemsList() {
     return typeof stems !== 'undefined' ? stems : [];
   }
@@ -323,6 +432,8 @@
   }
 
   // How far along the stem a point is (0 = top, 1 = base) and how far from it.
+  // Projection of a point onto the stem line: f is found with a dot product
+  // and clamped to the stem, then distance is measured to that closest point.
   function alongStem(stem, x, y) {
     const x1 = stem.topX * width, y1 = stem.topY * height;
     const x2 = stem.bottomX * width, y2 = stem.bottomY * height;
@@ -332,6 +443,9 @@
     return { f, distance };
   }
 
+  // A leaf whose stalk lies on a swaying stem (within 1.2 % of the canvas
+  // width) moves sideways by the sway at its height: full sway at the top
+  // (f = 0), none at the base (f = 1).
   function leafOnSwayingStem(leaf) {
     for (const [stem, state] of stemSway) {
       const where = alongStem(stem, leaf.px * width, leaf.py * height);
@@ -358,6 +472,8 @@
   }
 
   // Is the canvas point (x, y) in pixels on a stem? Returns the stem and where.
+  // A click within 60 % of the stem's thickness (plus 4 px) counts as on it.
+  // The very top (f < 0.02) belongs to the flower head instead.
   function stemAt(x, y) {
     for (const stem of stemsList()) {
       const where = alongStem(stem, x, y);
@@ -376,6 +492,8 @@
     state.speed += away * STEM.kick * strength() * (0.4 + 0.6 * (1 - f));
     stemSway.set(stem, state);
 
+    // Secondary motion: as the stem jerks one way, its leaves lag behind and
+    // flick the other way, which makes the plant look flexible, not rigid.
     if (typeof leaves !== 'undefined') {
       for (const leaf of leaves) {
         if (alongStem(stem, leaf.px * width, leaf.py * height).distance < width * 0.012) {
@@ -386,6 +504,75 @@
       }
     }
     if (status) status.textContent = 'Stem';
+  }
+
+  // ------------------------------------------------------ colour wave (net)
+  // A click starts a wave at the click point. Each background line is lit
+  // when the wave front passes its position: a vertical line is reached when
+  // the front has travelled its horizontal distance from the click, and a
+  // horizontal line its vertical distance. So the colour runs out along the
+  // net's rows and columns, like dye spreading through a woven net.
+  function startColourWave(x, y, rgb) {
+    colourWaves.push({ x, y, rgb, start: performance.now() });
+    if (colourWaves.length > 4) colourWaves.shift();
+  }
+
+  // How much one line takes a wave's colour right now (0–1).
+  function waveOnLine(wave, line, now) {
+    const p = (now - wave.start) / WAVE.life;
+    if (p <= 0 || p >= 1) return 0;
+    const front = easeInOutSine(p) * WAVE.reach * width;          // px from the click
+    const distance = line.horizontal
+      ? Math.abs(line.position * height - wave.y)
+      : Math.abs(line.position * width - wave.x);
+    const band = WAVE.band * width;
+    const lit = Math.exp(-((distance - front) ** 2) / (2 * band * band));   // bright at the front
+    return lit * (1 - p) * WAVE.tint;                              // and fading with time
+  }
+
+  function wrapBackground() {
+    if (typeof PerlinBackground === 'undefined') return;
+    const teamDraw = PerlinBackground.prototype.draw;
+    PerlinBackground.prototype.draw = function (...args) {
+      const now = performance.now();
+      colourWaves = colourWaves.filter((w) => now - w.start < WAVE.life);
+      if (!colourWaves.length || !Array.isArray(this.lines)) return teamDraw.apply(this, args);
+
+      // tint (and thicken) each line for this drawing only
+      const homes = this.lines.map((line) => ({ colour: line.colour, weight: line.weight }));
+      for (const line of this.lines) {
+        let colour = line.colour;
+        let glow = 0;
+        for (const wave of colourWaves) {
+          const k = waveOnLine(wave, line, now);
+          if (k > 0.002) colour = colour.map((c, i) => c + (wave.rgb[i] - c) * k);
+          glow = Math.max(glow, k);
+        }
+        line.colour = colour;
+        line.weight = line.weight * (1 + WAVE.thicken * glow);
+      }
+      try {
+        return teamDraw.apply(this, args);
+      } finally {
+        this.lines.forEach((line, i) => {                               // the net is unchanged
+          line.colour = homes[i].colour;
+          line.weight = homes[i].weight;
+        });
+      }
+    };
+  }
+
+  // The main petal colour of a flower: its most common outer-dot colour.
+  function petalColour(flower) {
+    const counts = new Map();
+    let best = null;
+    for (const rgb of edgeColours(flower)) {
+      const key = rgb.join(',');
+      const n = (counts.get(key) || 0) + 1;
+      counts.set(key, n);
+      if (!best || n > counts.get(best.join(','))) best = rgb;
+    }
+    return best || [235, 230, 220];
   }
 
   // ------------------------------------------------------------- click → effect
@@ -408,6 +595,9 @@
     return colours.length ? colours : [[235, 230, 220]];
   }
 
+  // Each loose dot starts at a point on the petal edge (0.96–1.04 × the edge,
+  // so they do not sit in a perfect line) with its own size, colour, random
+  // seed and start delay. The seed makes every dot move a little differently.
   function makeLooseDots(flower, type, clickAngle, windX, windY) {
     const colours = edgeColours(flower);
     const dots = [];
@@ -434,6 +624,8 @@
     return dots;
   }
 
+  // The panel's choice, or a random effect that is not the same as the last
+  // one (so "Random" always feels varied).
   function pickEffect() {
     let index = EFFECTS.indexOf(selection);
     if (index < 0) {
@@ -444,6 +636,10 @@
     return EFFECTS[index];
   }
 
+  // Starts an effect on a flower. Clicks closer than 150 ms are ignored, so a
+  // double click does not start two effects on top of each other.
+  // clickX / clickY are the click position in flower units (1 = radius);
+  // a click near the centre counts as coming from the left (angle π).
   function trigger(flower, nx, ny) {
     const now = performance.now();
     if (now - lastClickAt < 150) return false;
@@ -466,7 +662,10 @@
 
     const dots = type === 'ripple' ? [] : makeLooseDots(flower, type, clickAngle, windX, windY);
     active = active.filter((p) => now - p.start < LIFETIME);
-    active.push({ flower, type, start: now, dots, windX, windY });
+    // each ripple spreads a little differently (0.5–0.7 × the radius beyond
+    // the petals), so repeated ripples are not all the same
+    const reach = 0.5 + Math.random() * 0.2;
+    active.push({ flower, type, start: now, dots, windX, windY, reach });
     if (active.length > 4) active.shift();
 
     if (status) status.textContent = LABELS[type];
@@ -475,6 +674,12 @@
 
   // ------------------------------------------------------- the edge effects
   // Position of a loose dot after t seconds (flower units, 1 = flower radius).
+  //   Breeze: travel along the wind direction with a smooth start
+  //           (easeInOutSine over 2.2 s), plus a sideways sway from noise()
+  //           that grows in over the first 0.6 s.
+  //   Pollen: a short hop outwards that slows down (1 − e^(−4t)), then a fall
+  //           that speeds up like gravity (∝ t²), with a sine flutter.
+  // k is the click strength; s (the dot's seed) makes each path different.
   function looseDotAt(pulse, d, t, k) {
     const s = d.seed;
     let x = d.x;
@@ -500,6 +705,8 @@
     return [x, y];
   }
 
+  // Draws every running effect. Dots are placed relative to the flower's
+  // centre (cx, cy) and radius R, so they stay right after a window resize.
   function drawEffects(now) {
     const k = strength();
 
@@ -511,7 +718,7 @@
       const R = flower.nr * width;
 
       if (pulse.type === 'ripple') {
-        drawRipple(flower, p, cx, cy, R);
+        drawRipple(flower, p, cx, cy, R, pulse.reach);
         continue;
       }
 
@@ -529,12 +736,14 @@
   }
 
   // Rings of small dots spread out from the flower's edge (never over it).
-  function drawRipple(flower, p, cx, cy, R) {
+  // Three rings start one after another (0.16 apart in progress), each grows
+  // from 1.06 × the petal outline by "reach" (random per click) and fades.
+  function drawRipple(flower, p, cx, cy, R, reach = 0.6) {
     const dot = Math.max(1.5, R * 0.024);
     for (let i = 0; i < 3; i++) {
       const q = clamp01((p - i * 0.16) / 0.75);
       if (q <= 0 || q >= 1) continue;
-      const grow = 1.06 + 0.6 * easeInOutSine(q);       // starts just outside the petals
+      const grow = 1.06 + reach * easeInOutSine(q);     // starts just outside the petals
       fill(240, 244, 255, 235 * (1 - q) * (1 - i * 0.25));
       // enough dots that they read as a ring (about 2.6 dot-widths apart)
       const count = Math.max(24, Math.floor((Math.PI * 2 * grow * R) / (dot * 2.6)));
@@ -547,27 +756,46 @@
   }
 
   // A ring of small dots slowly circles the flower that can be clicked
-  // (mouse hover or keyboard). Leaves and stems only change the cursor.
+  // (mouse hover or keyboard).
+  // (The dot cursor shows leaves and stems; see drawCursor.)
+  // The keyboard choice wins over the mouse. The ring's size comes from
+  // ringScale(); it turns slowly and a brightness wave runs round it.
+  // Current ring size: the spring moves "angle" towards "goal".
+  function ringScale(now) {
+    const offset = { angle: ring.angle - ring.goal, speed: ring.speed, last: ring.last || now };
+    stepSpring(offset, RING.spring, now);
+    ring.angle = ring.goal + offset.angle;
+    ring.speed = offset.speed;
+    ring.last = offset.last;
+    return ring.angle * (1 + RING.breathe * Math.sin(now / 900));
+  }
+
+  // A new random ring size, at least 0.1 away from the current one, so every
+  // click visibly makes it bigger or smaller.
+  function jumpRing() {
+    let next;
+    do {
+      next = RING.min + Math.random() * (RING.max - RING.min);
+    } while (Math.abs(next - ring.goal) < 0.1);
+    ring.goal = next;
+  }
+
   function drawHover(now) {
     let flower = null;
-    let overLeaf = false;
     const mouseIn = typeof mouseX === 'number' && mouseX >= 0 && mouseX <= width && mouseY >= 0 && mouseY <= height;
     if (keyboardIndex >= 0) {
       flower = flowers()[keyboardIndex] || null;
     } else if (mouseIn) {
       flower = flowerAt(mouseX / width, mouseY / height);
-      if (!flower) overLeaf = !!leafAt(mouseX, mouseY) || !!stemAt(mouseX, mouseY);
     }
 
-    const canvas = document.querySelector('canvas');
-    if (canvas) canvas.style.cursor = flower || overLeaf ? 'pointer' : 'default';
     if (!flower) return;
 
     const R = flower.nr * width;
     const cx = flower.nx * width + flowerShift(flower);
     const cy = flower.ny * height;
-    const ringR = R * 1.18;
-    const count = 36;
+    const ringR = R * ringScale(now);
+    const count = Math.round(30 * ring.angle);        // more dots on a bigger ring
     const turn = now / 6000;                          // one turn every ~38 s
     const dot = Math.max(2, R * 0.034);
     for (let i = 0; i < count; i++) {
@@ -578,6 +806,66 @@
     }
   }
 
+  // The dot cursor. Each trail dot moves a fixed fraction of the way towards
+  // the dot in front of it every frame, so the trail lags behind and curls
+  // when the mouse turns. Over something clickable the dot grows and takes
+  // that thing's colour; a click squeezes it on a quick spring.
+  function drawCursor(now, target) {
+    // hidden when the pointer has left the canvas (p5 keeps the last mouseX)
+    // or while the keyboard is being used
+    if (!cursor.inside || keyboardIndex >= 0) {
+      cursor.trail = [];
+      return;
+    }
+
+    // trail: the first point is the mouse, the rest chase the one in front
+    if (!cursor.trail.length) {
+      for (let i = 0; i <= CURSOR.trail; i++) cursor.trail.push({ x: mouseX, y: mouseY });
+    }
+    cursor.trail[0].x = mouseX;
+    cursor.trail[0].y = mouseY;
+    for (let i = 1; i < cursor.trail.length; i++) {
+      const a = cursor.trail[i];
+      const b = cursor.trail[i - 1];
+      a.x += (b.x - a.x) * CURSOR.follow;
+      a.y += (b.y - a.y) * CURSOR.follow;
+    }
+
+    // size and colour ease towards what is under the mouse
+    const goal = (target ? CURSOR.hoverSize : CURSOR.size) * width;
+    cursor.size += (goal - cursor.size) * 0.2;
+    const goalRgb = target ? target.rgb : [245, 242, 235];
+    cursor.rgb = cursor.rgb.map((c, i) => c + (goalRgb[i] - c) * 0.15);
+
+    stepSpring(cursor.press, CURSOR.press, now);
+    const squeeze = Math.max(0.4, 1 + cursor.press.angle);
+
+    // trail dots: smaller and fainter towards the end
+    for (let i = cursor.trail.length - 1; i >= 1; i--) {
+      const k = 1 - i / (cursor.trail.length + 1);
+      fill(cursor.rgb[0], cursor.rgb[1], cursor.rgb[2], 200 * k);
+      circle(cursor.trail[i].x, cursor.trail[i].y, cursor.size * 0.55 * k);
+    }
+
+    // the dot itself: a plain solid dot, no outline
+    fill(cursor.rgb[0], cursor.rgb[1], cursor.rgb[2]);
+    circle(mouseX, mouseY, cursor.size * squeeze);
+  }
+
+  // What is under the mouse and its colour (for the cursor).
+  function cursorTarget() {
+    if (typeof mouseX !== 'number') return null;
+    const flower = flowerAt(mouseX / width, mouseY / height);
+    if (flower) return { rgb: petalColour(flower) };
+    const onLeaf = leafAt(mouseX, mouseY);
+    if (onLeaf) return { rgb: (onLeaf.leaf.colours && onLeaf.leaf.colours.light) || LEAF_TINT };
+    const onStem = stemAt(mouseX, mouseY);
+    if (onStem) return { rgb: (onStem.stem.colours && onStem.stem.colours.mid) || LEAF_TINT };
+    return null;
+  }
+
+  // Called after the team's draw() every frame, so everything here is drawn
+  // on top of the garden.
   function display() {
     if (typeof push !== 'function' || typeof width !== 'number') return;
     const now = performance.now();
@@ -587,10 +875,14 @@
     noStroke();
     drawHover(now);
     drawEffects(now);
+    drawCursor(now, cursorTarget());
     pop();
   }
 
   // --------------------------------------------------------- control panel
+  // The panel is plain HTML placed over the canvas (not drawn with p5), so it
+  // stays sharp, works with the keyboard and screen readers, and does not
+  // have to be redrawn every frame.
   function makeControls() {
     const panel = document.createElement('div');
     panel.style.cssText = `
@@ -652,6 +944,8 @@
   }
 
   // ------------------------------------------- hook into the p5 lifecycle
+  // index.html loads this file AFTER sketch.js, so the team's setup() and
+  // draw() already exist and can be wrapped: theirs runs first, then mine.
   const originalSetup = window.setup;
   const originalDraw = window.draw;
   if (typeof originalSetup !== 'function' || typeof originalDraw !== 'function') {
@@ -663,6 +957,7 @@
   wrapWind();
   wrapLeaves();
   wrapStems();
+  wrapBackground();
 
   window.setup = function (...args) {
     const result = originalSetup.apply(this, args);
@@ -670,30 +965,47 @@
 
     if (canvas) {
       canvas.setAttribute('tabindex', '0');
+      canvas.style.cursor = 'none';             // the dot cursor replaces the arrow
       canvas.setAttribute('aria-label',
         'Interactive flower garden. Click a flower to make it bounce and shed a few dots, a leaf to make it swing, or a stem to make the plant sway. Arrow keys and Enter choose and trigger flowers.');
 
+      // One pointer handler covers mouse, pen and touch. Only the left button
+      // / first finger counts. Flowers are checked first, then leaves, then
+      // stems, because a flower head sits on top of its stem and leaves.
       canvas.addEventListener('pointerdown', (event) => {
         if (event.button !== 0 || !event.isPrimary) return;
         keyboardIndex = -1;
+        cursor.press.last = performance.now();
+        cursor.press.speed += CURSOR.press.kick;       // squeeze the dot cursor
         const rect = canvas.getBoundingClientRect();
         const nx = (event.clientX - rect.left) / rect.width;
         const ny = (event.clientY - rect.top) / rect.height;
+        const px = nx * width;
+        const py = ny * height;
         const flower = flowerAt(nx, ny);
         if (flower) {
-          trigger(flower, nx, ny);
+          if (trigger(flower, nx, ny)) {
+            startColourWave(px, py, petalColour(flower));
+            jumpRing();
+          }
           return;
         }
-        const onLeaf = leafAt(nx * width, ny * height);
+        const onLeaf = leafAt(px, py);
         if (onLeaf) {
           kickLeaf(onLeaf.leaf, onLeaf.hit);
+          startColourWave(px, py, (onLeaf.leaf.colours && onLeaf.leaf.colours.light) || LEAF_TINT);
           return;
         }
-        const onStem = stemAt(nx * width, ny * height);
-        if (onStem) pushStem(onStem.stem, onStem.f, nx * width);
+        const onStem = stemAt(px, py);
+        if (onStem) {
+          pushStem(onStem.stem, onStem.f, px);
+          startColourWave(px, py, (onStem.stem.colours && onStem.stem.colours.mid) || LEAF_TINT);
+        }
         else if (status) status.textContent = 'Click a flower, a leaf or a stem';
       });
 
+      // Keyboard access: arrow keys move between flowers (shown by the dot
+      // ring), Enter or Space triggers the chosen flower.
       canvas.addEventListener('keydown', (event) => {
         const list = flowers();
         if (!list.length) return;
@@ -707,10 +1019,22 @@
           event.preventDefault();
           if (keyboardIndex < 0) keyboardIndex = 0;
           const f = list[keyboardIndex];
-          trigger(f, f.nx, f.ny);
+          if (trigger(f, f.nx, f.ny)) {
+            startColourWave(f.nx * width, f.ny * height, petalColour(f));
+            jumpRing();
+          }
         }
       });
       canvas.addEventListener('blur', () => { keyboardIndex = -1; });
+
+      // show the dot cursor only while the pointer is over the canvas; moving
+      // the mouse hands control back from the keyboard
+      canvas.addEventListener('pointerenter', () => { cursor.inside = true; });
+      canvas.addEventListener('pointerleave', () => { cursor.inside = false; });
+      canvas.addEventListener('pointermove', () => {
+        cursor.inside = true;
+        keyboardIndex = -1;
+      });
     }
 
     makeControls();
