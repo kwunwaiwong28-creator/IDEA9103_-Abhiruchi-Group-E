@@ -145,8 +145,18 @@ class DotPen {
   }
 }
 
+function pickFlowerColours(scheme = random(FLOWER_SCHEMES)) {
+  let petalColours = [scheme.petalBase].concat(scheme.petalDots);
+  let coreColours = [scheme.coreBase].concat(scheme.coreDots);
+  return {
+    scheme: scheme,
+    petal: [0, 1, 2, 3, 4].map(() => random(petalColours)),
+    core: [0, 1, 2, 3, 4, 5, 6].map(() => random(coreColours))
+  };
+}
+
 class FlowerDotAnimator {
-  constructor(nx, ny, nr) {
+  constructor(nx, ny, nr, colours = pickFlowerColours()) {
     this.nx = nx;
     this.ny = ny;
     this.nr = nr;
@@ -156,20 +166,18 @@ class FlowerDotAnimator {
     this.inner = random(0.58, 0.66);
     this.coreRatio = 0.5;
 
-    let scheme = random(FLOWER_SCHEMES);
-    let petalColours = [scheme.petalBase].concat(scheme.petalDots);
-    let coreColours = [scheme.coreBase].concat(scheme.coreDots);
+    this.colours = colours;
 
     this.pens = [];
 
-    for (const k of [1.0, 0.82, 0.64, 0.46, 0.28]) {
+    [1.0, 0.82, 0.64, 0.46, 0.28].forEach((k, i) => {
       let fn = (a) => lerp(this.coreRatio * 1.05, this.outline(a), k);
-      this.pens.push(new DotPen(fn, random(petalColours), 0.05, 0.07, DRAW_LAPS));
-    }
+      this.pens.push(new DotPen(fn, colours.petal[i], 0.05, 0.07, DRAW_LAPS));
+    });
 
-    for (const rr of [0.46, 0.4, 0.33, 0.26, 0.19, 0.12, 0.06]) {
-      this.pens.push(new DotPen(() => rr, random(coreColours), 0.055, 0.07, DRAW_LAPS));
-    }
+    [0.46, 0.4, 0.33, 0.26, 0.19, 0.12, 0.06].forEach((rr, i) => {
+      this.pens.push(new DotPen(() => rr, colours.core[i], 0.055, 0.07, DRAW_LAPS));
+    });
 
     this.dots = [];
     this.layer = null;
