@@ -31,16 +31,17 @@ function setup() {
   leaves.push(new WindLeaf(stems[0].pointAt(0.36), 0.26, -1, 0.2));
   leaves.push(new WindLeaf(stems[2].pointAt(0.72), 0.32, -1, 0.3));
 
-  animatedFlowers.push(new FlowerDotAnimator(0.22, 0.17, 0.19));
-  animatedFlowers.push(new FlowerDotAnimator(0.84, 0.78, 0.15));
+  let coloursA = pickFlowerColours();
+  let coloursB = pickFlowerColours(random(FLOWER_SCHEMES.filter((s) => s !== coloursA.scheme)));
+
+  animatedFlowers.push(new FlowerDotAnimator(0.22, 0.17, 0.19, coloursA));
+  animatedFlowers.push(new FlowerDotAnimator(0.84, 0.78, 0.15, coloursA));
+  animatedFlowers.push(new FlowerDotAnimator(0.67, 0.18, 0.25, coloursB));
+  animatedFlowers.push(new FlowerDotAnimator(0.37, 0.47, 0.27, coloursB));
   for (const f of animatedFlowers) {
     f.resetLayer();
     f.onCreated = (flower) => wilts.push(new FlowerWilt(flower));
   }
-
-  noisyFlowers.push(new NoisyFlower(0.67, 0.18, 0.25, "spiky"));
-  noisyFlowers.push(new NoisyFlower(0.37, 0.47, 0.27, "round"));
-}
 
 function draw() {
   perlinBackground.draw(t);
