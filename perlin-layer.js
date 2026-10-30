@@ -361,6 +361,82 @@ class WindLeaf {
 
     this.flutterSeed = random(1000);
     this.flutterAmount = random(0.08, 0.16);
+
+    this.textureSeed = this.flutterSeed + 500;
+  }
+
+  edgeAt(s, side) {
+    let seed = this.textureSeed + (side > 0 ? 0 : 50);
+    return map(noise(seed + s * 9), 0, 1, 0.86, 1.1);
+  }
+
+  outlinePoint(s, side, L, W) {
+    return {
+      x: bezierPoint(0, L * 0.25, L * 0.7, L, s),
+      y: side * bezierPoint(0, W, W * 0.85, 0, s) * this.edgeAt(s, side)
+    };
+  }
+
+  midribY(s, W) {
+    return map(noise(this.textureSeed + 300 + s * 3), 0, 1, -1, 1) * W * 0.025;
+  }
+
+  drawHalf(L, W, side) {
+    beginShape();
+    for (let i = 0; i <= 40; i++) {
+      let p = this.outlinePoint(i / 40, side, L, W);
+      vertex(p.x, p.y);
+    }
+    endShape(CLOSE);
+  }
+
+  drawMottling(L, W) {
+    let light = this.colours.light;
+    let dark = this.colours.dark;
+    let seed = this.textureSeed;
+
+    noStroke();
+    for (let i = 0; i < 13; i++) {
+      for (let j = -3; j <= 3; j++) {
+        if (j === 0) continue;
+        let tone = noise(seed + 800 + i * 0.4, j * 0.6);
+        let alpha = abs(tone - 0.5) * 2 * 140;
+        if (alpha < 18) continue;
+        let side = j > 0 ? 1 : -1;
+        let s = constrain((i + 0.5) / 13 + map(noise(seed + 700 + i * 0.9, j * 0.9), 0, 1, -0.03, 0.03), 0.04, 0.96);
+        let k = (abs(j) - 0.4) / 3.2 + map(noise(seed + 750 + i * 0.7, j * 1.3), 0, 1, -0.08, 0.08);
+        let edge = this.outlinePoint(s, side, L, W);
+        let x = edge.x;
+        let y = edge.y * constrain(k, 0.1, 0.8);
+
+        let base = side > 0 ? light : dark;
+        let c = tone > 0.5
+          ? [lerp(base[0], dark[0] * 0.8, 0.5), lerp(base[1], dark[1] * 0.8, 0.5), lerp(base[2], dark[2] * 0.8, 0.5)]
+          : [lerp(base[0], 255, 0.25), lerp(base[1], 255, 0.25), lerp(base[2], 255, 0.25)];
+        let size = W * map(noise(seed + 900 + i, j), 0, 1, 0.06, 0.18);
+
+        fill(c[0], c[1], c[2], alpha);
+        ellipse(x, y, size * 1.8, size);
+      }
+    }
+  }
+
+  drawVein(s0, side, k, L, W, seed) {
+    let x0 = bezierPoint(0, L * 0.25, L * 0.7, L, s0);
+    let y0 = this.midribY(s0, W);
+    let end = this.outlinePoint(min(s0 + 0.12, 0.97), side, L, W);
+    let x1 = end.x;
+    let y1 = end.y * k;
+
+    beginShape();
+    for (let i = 0; i <= 8; i++) {
+      let u = i / 8;
+      let wob = map(noise(seed + u * 2), 0, 1, -1, 1) * abs(y1 - y0) * 0.06;
+      let x = lerp(x0, x1, u) - sin(PI * u) * L * 0.015;
+      let y = lerp(y0, y1, pow(u, 0.85)) + wob;
+      vertex(x, y);
+    }
+    endShape();
   }
 
   draw(t, wind) {
@@ -383,30 +459,37 @@ class WindLeaf {
 
     noStroke();
 
-    fill(this.colours.light[0], this.colours.light[1], this.colours.light[2]);
-    beginShape();
-    vertex(0, 0);
-    bezierVertex(L * 0.25, W, L * 0.7, W * 0.85, L, 0);
-    endShape(CLOSE);
-
-    fill(this.colours.dark[0], this.colours.dark[1], this.colours.dark[2]);
-    beginShape();
-    vertex(0, 0);
-    bezierVertex(L * 0.25, -W, L * 0.7, -W * 0.85, L, 0);
-    endShape(CLOSE);
-
+    let light = this.colours.light;
+    let dark = this.colours.dark;
     let v = this.colours.vein;
-    stroke(v[0], v[1], v[2]);
+    let seed = this.textureSeed;
+
+    fill(light[0], light[1], light[2]);
+    this.drawHalf(L, W, 1);
+
+    fill(dark[0], dark[1], dark[2]);
+    this.drawHalf(L, W, -1);
+
+    this.drawMottling(L, W);
+
+    noFill();
+    stroke(v[0], v[1], v[2], 230);
     strokeWeight(max(1, L * 0.012));
-    line(0, 0, L * 0.96, 0);
+    beginShape();
+    for (let i = 0; i <= 24; i++) {
+      let s = i / 24;
+      vertex(bezierPoint(0, L * 0.25, L * 0.7, L, s) * 0.96, this.midribY(s, W));
+    }
+    endShape();
 
     strokeWeight(max(1, L * 0.007));
     let veins = 9;
     for (let i = 1; i <= veins; i++) {
-      let px = (L * 0.9 * i) / (veins + 1);
-      let reach = W * 0.68 * sin(PI * px / L);
-      line(px, 0, px + L * 0.1, -reach);
-      line(px, 0, px + L * 0.1, reach);
+      let s0 = (0.9 * i) / (veins + 1);
+      let k1 = map(noise(seed + 400 + i * 0.6), 0, 1, 0.7, 0.92);
+      let k2 = map(noise(seed + 450 + i * 0.6), 0, 1, 0.7, 0.92);
+      this.drawVein(s0, -1, k1, L, W, seed + 500 + i * 3);
+      this.drawVein(s0, 1, k2, L, W, seed + 600 + i * 3);
     }
 
     pop();
