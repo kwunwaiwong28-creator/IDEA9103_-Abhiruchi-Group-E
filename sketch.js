@@ -42,6 +42,7 @@ function setup() {
     f.resetLayer();
     f.onCreated = (flower) => wilts.push(new FlowerWilt(flower));
   }
+}
 
 function draw() {
   perlinBackground.draw(t);
