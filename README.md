@@ -17,11 +17,11 @@ Open `index.html` in a browser (an internet connection is needed, because p5.js 
 - **Click a stem:** the whole plant is pushed away from your finger and sways from its base, carrying its flower and leaves; a push higher up the stem moves it more.
 - **Control panel (top left):** lists what each kind of click does; drag *Click strength* to make the motion gentler or stronger; untick *Sounds* to mute the click sounds; the last line tells you what your last click did.
 - **Keyboard:** press Tab to focus the canvas, use the arrow keys to choose a flower (a ring of dots shows which), and press Enter or Space to click it.
-- [Teammates: add how to interact with your mechanic, e.g. "click to start audio".]
+- **Play Music (audio):** click *Play Music* at the bottom centre to start the soundtrack (browsers only allow sound after a click). While it plays, light on the flowers follows the music: the bass drives a halo in the centre, the mids a turning ring and the treble glints on the dots. The slider next to the button sets the volume.
 
 ## Inspiration
 
-**Source artwork:** Yayoi Kusama, *Flowers* (2015), painting. Artist's official website: https://yayoi-kusama.jp/ — [Group: add the link to the exact image source of the painting here.]
+**Source artwork:** Yayoi Kusama, *Flowers* (2015), painting. Artist's official website: https://yayoi-kusama.jp/
 
 The painting shows four sunflower-like flowers rising from bold green stems and leaves on a dark ground covered with a fine net of small marks. Every part of it is built from dots: the spiky petals are lined with rows of dots, and each flower's centre is a set of concentric rings of dots in contrasting colours. The colours are flat and bright — crimson, orange-gold, white, sky blue and violet against the near-black background.
 
@@ -40,7 +40,7 @@ Our reinterpretation is not a copy: we simplified the shapes into flat vector fo
 | --- | --- | --- |
 | Perlin noise and randomness | Jackie | `perlin-layer.js` & `plants.js`|
 | Time-based | Yeheng Li | `time-mechanic.js` |
-| Audio | Rongwei Zhao | `[audio-mechanic.js]` |
+| Audio | Rongwei Zhao | `audio-mechanic.js` |
 | User input | Hangjing Ye | `user-input.js` |
 
 `plants.js` holds the static stems. `sketch.js` brings all the scripts together.
@@ -162,6 +162,7 @@ From this I kept four rules for the final version: **let the viewer change the g
 - **Soft motion:** `easeInOutSine` gives the ring of dots a soft start and stop; a falling head speeds up under gravity until it reaches a top speed, like a falling leaf.
 - **Feedback:** the dot cursor grows and changes colour over anything touchable, a ring of small dots circles the flower under the mouse, and the panel lists what each click does and what the last click did.
 - **Accessibility:** keyboard control (arrow keys + Enter), `aria-label`s, and smaller motion when the system asks for reduced motion.
+- **Efficiency:** answers needed several times in one frame (the list of flowers, the flower under the mouse) are worked out once per frame (`perFrame()`); the cursor's colour, which comes from counting a flower's ~2000 dots, is kept for 0.4 s or until the flower changes colour; and the wrapped draw methods skip extra work when nothing is changing. This halved the time my mechanic adds to each frame (measured with Node's CPU profiler: from about 8 % to 4.5 % of the frame).
 - **Robustness:** if the page is first shown at zero size (for example in a hidden preview panel), the self-drawing flowers would create zero-size drawing layers and stop p5's draw loop with an error. `canvasReady()` skips frames until the canvas has a size and rebuilds any layer whose size no longer matches the canvas, using the team's own `resetLayer()`.
 
 ## Techniques
@@ -189,13 +190,12 @@ From this I kept four rules for the final version: **let the viewer change the g
 - **Sharing the wind:** falling leaves drift with the team's shared Perlin wind (`windStrength()`).
 - **Classes for each moving thing:** `Spring`, `FallingLeaf`, `FallingHead`, `PlantedFlower`, `Ripple`, `HoverRing`, `DotCursor` and `GardenSounds` each keep their own state and have their own `update()` / `draw()` methods; one `Spring` class with different settings replaces five copies of the same physics.
 - **Web Audio synthesis:** the colour chime and the falling sounds are built from oscillators, a noise buffer, band-pass filters, exponential volume envelopes and an LFO, with notes turned into frequencies by `f = 440 · 2^((n − 69) / 12)`; while the music plays they are routed into its master volume, so the audio mechanic's analyser reacts to them.
-- [Teammates: add the techniques your mechanic uses.]
 
 ## AI acknowledgement
 
 - **Jackie (`perlin-layer.js`,`plants.js`, `sketch.js`):** parts of this code were generated with the help of Claude and then edited. Claude helped structure the classes, write the petal-shape, noise and debug the layout.
 - **Yeheng Li (`time-mechanic.js`):** parts of this code were generated with the help of Claude and then edited by me. I wrote the first version (`Timer`, `WiltingDot`, `FlowerWilt`) myself, designed the four bloom clocks, the wilting and the life cycle, and re-checked, edited and tested all of the code before committing it.
-- **Rongwei Zhao (`audio-mechanic.js`): I used ChatGPT (OpenAI) as a support tool while developing my Audio Mechanic. My creative direction was to make the flowers respond to music by changing their size according to sound intensity. I used AI assistance to troubleshoot compatibility with the team's existing code.
+- **Rongwei Zhao (`audio-mechanic.js`):** I used ChatGPT (OpenAI) as a support tool while developing my Audio Mechanic. My creative direction was to make the flowers respond to music by changing their size according to sound intensity. I used AI assistance to troubleshoot compatibility with the team's existing code.
 - **Hangjing Ye (`user-input.js`):** I designed the mechanic (touching the garden: planting flowers, changing flower and background colours, falling flowers and leaves, swaying stems, the dot cursor and the sounds) and chose every change after testing each version and responding to my tutor's feedback. ChatGPT (OpenAI) helped with the first version (click detection and the control panel); Claude (Anthropic) helped me write the later versions, including the springs, the falling and planting logic, the Web Audio sounds and the reorganisation into classes. How each part works is explained in the User input section above. I tested everything in the browser and edited the code; the same note is at the top of `user-input.js`.
 
 ## External references
@@ -208,4 +208,3 @@ From this I kept four rules for the final version: **let the viewer change the g
 - Easings.net, easeInOutSine: https://easings.net/#easeInOutSine — the soft start and stop of the ring of dots after a colour change (`user-input.js`).
 - MDN, Web Audio API: https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API — oscillators, noise buffers, filters, gain envelopes and the LFO used for the click sounds (`user-input.js`).
 - MIDI tuning standard (note number → frequency): https://en.wikipedia.org/wiki/MIDI_tuning_standard — `f = 440 · 2^((n − 69) / 12)`, used to tune the falling notes to the music's key (`user-input.js`).
-- [Add any other code sources with a link and a one-line explanation, and comment them in the code too.]
