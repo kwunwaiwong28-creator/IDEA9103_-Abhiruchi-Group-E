@@ -5,49 +5,72 @@
  * plants answer a light touch, without hiding what the other mechanics draw:
  * the team's blooming, wilting and drifting dots always stay fully visible.
  *
- * Clicking a FLOWER:
- *   - the flower head gives a small springy bounce (it is never faded or covered)
- *   - and, outside the flower, one of three things happens:
- *       01 BREEZE  — a few dots are blown off the petal edge, away from the
- *                    click, and a gust goes through the garden: the leaves and
- *                    the falling wilted dots sway with it.
- *       02 POLLEN  — a few dots pop off the petal edge and drift down slowly,
- *                    like pollen shaken from a flower.
- *       03 RIPPLE  — rings of small dots spread outwards from the flower's
- *                    edge, like a drop on a pond.
+ * Clicking a FLOWER changes its colours: each click gives it a new colour
+ * scheme from the team's palette, which spreads across the flower from the
+ * point you clicked (with a bounce and a small ring of dots in the new
+ * colour). Click the same flower a fourth time in a row and
+ * its whole head lets go of the stem and falls to the ground; a few seconds
+ * later it draws itself again on the stem (keeping its new colours).
  *
- * Clicking a LEAF flicks it: it swings on a damped spring (like a real leaf
- * flicked with a finger) and settles back into the shared wind.
+ * Clicking EMPTY SPACE presses into the background net (its lines bend away
+ * from the click and spring back), gives the background its next colour
+ * scheme (spreading out from the click as a circle while the net lines
+ * fade to their new colours) and plants a new flower: a seed drops
+ * from the click to the ground, a stem shoots up to where you clicked, a
+ * leaf unfolds, and a new self-drawing flower blooms at the top. The whole
+ * new plant (stem, leaf and flower) is drawn together, just in front of the
+ * net and behind the original plants. It is one of the team's own
+ * FlowerDotAnimator flowers with its own FlowerWilt, so it lives the same
+ * life as the others: it blooms, wilts (its stem and leaf dry too) and
+ * regrows. Only one seed
+ * grows at a time (with a short pause after it), and up to two planted
+ * flowers are kept; planting a third fades the oldest away.
  *
- * Every click also sends a COLOUR WAVE through the background net: the
- * wavy lines light up in the colour of what was clicked (the flower's petal
- * colour, green for a leaf or stem) as the wave passes, then fade back.
+ * Clicking a LEAF makes it fall: it lets go of the stem and drifts down,
+ * rocking from side to side and carried by the shared wind, lies on the
+ * ground for a moment and fades. A few seconds later a new leaf grows back
+ * on the stem.
  *
  * The mouse itself is a DOT: the system arrow is hidden and replaced by a
  * small Kusama-style dot with a short trail of smaller dots. It grows over
  * anything that can be touched and squeezes then springs back on a click.
+ *
+ * SOUND: each colour change plays a soft two-note chime that gets higher
+ * with each click in a row (so the fall can be heard coming); a falling
+ * flower head plays a soft falling run of "dot" notes over a breath of air,
+ * then a low thump when it lands; a falling leaf plays a papery, fluttering
+ * rustle and a soft tap on the ground. The notes are in D minor, the key
+ * of the team's music. While the music (audio-mechanic.js) is playing, these sounds are mixed into it, so its
+ * volume slider controls them and its frequency analysis — and therefore
+ * its audio light — reacts to every fall. "Sounds" in the panel
+ * switches them off.
  *
  * Clicking a STEM pushes the whole plant: the stem leans from its base and
  * sways back and forth on a slower spring, carrying its flower head and its
  * leaves with it, and the leaves give a small flutter of their own.
  *
  * How it stays non-destructive:
- *   - The team's flower objects (animatedFlowers, noisyFlowers, leaves) are
- *     only READ. Loose dots are new particles in the flower's own colours.
+ *   - The team's files are not edited. A new colour only swaps which palette
+ *     colour a dot or pen points to; a falling head is a copy of the dots.
  *   - The bounce scales the flower head around its own centre by wrapping the
  *     existing draw methods, the same way time-mechanic.js wraps
  *     perlin-layer.js. Their code is not edited.
- *   - The leaf swing and the gust are added through the wind value that
- *     perlin-layer.js already uses (windStrength() and WindLeaf.draw()).
+ *   - The leaf flutter is added through the wind value that WindLeaf.draw()
+ *     already uses.
  *   - The stem sway moves the stem top only while Stem.draw() runs and puts
  *     it straight back, so time-mechanic.js still controls the real stem.
- *   - The colour wave changes each background line's colour only while
- *     PerlinBackground.draw() runs, then restores it, so the net's own
- *     colours and noise movement are untouched.
+ *   - A falling or regrowing leaf is drawn by the team's own WindLeaf.draw()
+ *     with its position, angle or size changed only for that drawing.
+ *   - A planted flower is a new FlowerDotAnimator with its own Stem and
+ *     WindLeaf. They are kept in my own list and drawn together with the
+ *     team's own draw methods, so the plant never splits into layers.
+ *   - The net is pressed, and the background recoloured, by changing what
+ *     is passed to p5's vertex(), background() and stroke() only while
+ *     PerlinBackground.draw() runs; then the real functions are restored.
  *   - setup() and draw() from sketch.js are wrapped, not replaced.
  *
- * Controls (panel, bottom left): choose a flower effect or "Random", and set
- * the click strength. Keyboard: Tab to the canvas, arrow keys choose a
+ * Controls (panel, top left): set the click strength; the panel also says
+ * what the last click did. Keyboard: Tab to the canvas, arrow keys choose a
  * flower, Enter / Space triggers it.
  *
  * Techniques from outside the course (also listed in README.md):
@@ -58,39 +81,79 @@
  *   - easeInOutSine curve for soft starts and stops: https://easings.net/#easeInOutSine
  *   - damped spring (harmonic oscillator) for the leaf swing, the stem sway and
  *     the flower bounce, stepped each frame: https://www.ryanjuckett.com/damped-springs/
+ *   - Web Audio API (oscillators, filtered noise, gain envelopes, an LFO) for
+ *     the click sounds: https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API
+ *   - MIDI note number → frequency: f = 440 · 2^((n − 69) / 12)
+ *     https://en.wikipedia.org/wiki/MIDI_tuning_standard
  *
  * AI acknowledgement: the first version (click detection, control panel,
  * copying the dots) was written with help from ChatGPT (OpenAI). The later
- * versions (the flower bounce, the three edge effects, the wind gust, the
- * leaf spring, the stem sway, the colour wave, the dot cursor, the dotted hover ring and the keyboard controls) were written
- * with help from Claude (Anthropic), then tested and edited by me.
+ * versions (the flower bounce, the colour change, the falling flower head,
+ * the stem sway, the planted flowers, the pressed net, the background
+ * colours, the falling leaves,
+ * the dot cursor, the dotted hover ring, the keyboard controls, the falling
+ * sounds and the reorganisation into classes) were written with help from
+ * Claude (Anthropic), then tested and edited by me.
  */
 
 (() => {
   'use strict';
 
   // ---------------------------------------------------------------- settings
-  // The three flower effects. "Random" in the panel picks one per click.
-  const EFFECTS = ['breeze', 'pollen', 'ripple'];
-  const LABELS = { breeze: 'Breeze', pollen: 'Pollen', ripple: 'Ripple' };
-
-  // Timing and size of the flower effects. LIFETIME is long enough for the
-  // dots to travel and fade, short enough that repeated clicks feel responsive.
-  const LIFETIME = 3400;        // ms for one flower effect
-  const LOOSE_DOTS = 46;        // dots released from the petal edge per click
-  const DOT_SCALE = 0.55;       // loose dots are drawn smaller than the originals
-  const GUST = 1.1;             // extra wind added to windStrength() by BREEZE
-
-  // Colour wave through the background net (sizes as fractions of the canvas).
-  // The lit band is a Gaussian bump around the moving wave front.
-  const WAVE = {
-    life: 2200,                 // ms until the wave has passed and faded
-    reach: 1.25,                // how far it travels (1 = canvas width)
-    band: 0.11,                 // how wide the lit band is
-    tint: 0.95,                 // how strongly a line takes the colour (0–1)
-    thicken: 1.3                // a lit line also gets up to 1 + 1.3 = 2.3× thicker
+  // Touching a flower (times in ms; ring sizes in flower radii).
+  const TOUCH = {
+    toDrop: 4,                  // clicks 1–3 change colour, the 4th makes the flower head fall
+    sweep: 500,                 // ms for a new colour to spread across the flower from the click
+    window: 2500,               // clicks further apart than this start counting again
+    ripple: 1200,               // the small ring of dots after a colour change
+    rippleReach: [0.16, 0.26],  // how far the ring spreads beyond the petals
+    fallSpeed: 0.55,            // fastest a falling head moves (canvas heights / s)
+    rest: 1200,                 // ms the head lies on the ground
+    fadeOut: 1000,              // ms to fade away
+    regrow: 800                 // ms after that before the flower draws itself again
   };
+
   const LEAF_TINT = [96, 176, 88];        // green from the team's LEAF_SETS
+
+  // Planting a flower (times in ms, sizes as fractions of the canvas).
+  const PLANT = {
+    seedFall: 600,              // the seed drops from the click to the ground
+    grow: 1400,                 // the stem shoots up to the click point
+    radius: [0.09, 0.13],       // size of a planted flower (× canvas width)
+    max: 2,                     // planted flowers kept at once
+    cooldown: 2500,             // ms before another seed can be planted
+    fade: 1200                  // the oldest one fades away over this time
+  };
+
+  // Pressing the background net (sizes as fractions of the canvas width).
+  // A dent pushes the net's lines away from the click and springs back:
+  //   offset = depth · e^(−(d/radius)²) · e^(−t/decay) · sin(2π · freq · t)
+  const NET = { life: 1800, depth: 0.03, radius: 0.13, decay: 0.45, freq: 1.6 };
+
+  // Background colours. Each empty-space click moves on to the next colour
+  // scheme: the new background colour spreads out from the click as a
+  // growing circle, and the net lines fade to their new colours at the same
+  // time. The first scheme is the team's own (MIDNIGHT and NET_BLUES in
+  // perlin-layer.js); the others are dark, so the flowers still stand out,
+  // like the different grounds of Kusama's flower paintings.
+  const BACKDROP = { spread: 1100 };   // ms for the new colour to cover the canvas
+  const BACKDROPS = [
+    null,                                                                   // the team's own
+    { bg: [26, 6, 12], net: [[176, 42, 64], [204, 66, 80], [132, 30, 52]] },    // crimson
+    { bg: [17, 8, 28], net: [[122, 72, 192], [152, 96, 214], [96, 56, 162]] },  // violet
+    { bg: [6, 18, 13], net: [[42, 142, 92], [64, 172, 112], [30, 112, 72]] },   // forest
+    { bg: [24, 16, 6], net: [[192, 140, 42], [214, 166, 62], [160, 110, 30]] }  // amber
+  ];
+
+  // A falling leaf (settings).
+  const FALL = {
+    ground: 0.96,               // where it comes to rest (× canvas height)
+    speed: 0.16,                // falling speed it settles at (canvas heights / s)
+    rest: 1500,                 // ms lying on the ground before fading
+    fadeOut: 1200,              // ms to fade away
+    regrowDelay: 1500,          // ms before a new leaf starts to grow
+    regrow: 1800                // ms for the new leaf to reach full size
+  };
 
   // Dot cursor (sizes as fractions of the canvas width).
   const CURSOR = {
@@ -109,41 +172,58 @@
   //   kick    — speed given by one click (units of the value being sprung)
   // A leaf is light, so it swings fastest; a stem carries a flower, so it is
   // the slowest and heaviest; the flower bounce is a quick, short "nod".
-  const LEAF = { freq: 1.3, damping: 0.11, kick: 3.6 };     // leaf swing (radians)
-  const BOUNCE = { freq: 2.4, damping: 0.16, kick: 1.1 };   // flower head (scale)
+  const LEAF = { freq: 1.3, damping: 0.11 };                // leaf flutter (radians)
+  const BOUNCE = { freq: 2.4, damping: 0.16, kick: 1.6 };   // flower head (scale)
   const STEM = { freq: 0.9, damping: 0.08, kick: 0.3 };     // stem top (fraction of canvas width)
 
-  // Spring state is kept in Maps keyed by the team's own objects, so my
-  // mechanic never has to add or change properties on their classes.
-  // "angle" is the sprung value, "speed" its velocity, "last" the time of the
-  // last step (for real frame time).
-  const leafSwing = new Map();   // leaf   → { angle, speed, last }
-  const flowerBounce = new Map(); // flower → { angle, speed, last }  (angle = extra scale)
-  const stemSway = new Map();     // stem   → { angle, speed, last }  (angle = sideways offset)
-  const stemOfFlower = new Map(); // flower → its stem, found once at the start
-
-  // Dotted hover ring: its size changes on every click. The new size is
-  // picked at random (1.05–1.35 × the radius, never close to the last one),
+  // Dotted hover ring: it sits just outside the petal tips. Its size changes
+  // on every click: the new size is picked at random (1.04–1.14 × the
+  // distance to the furthest petal tip, never close to the last one),
   // and a spring carries the ring there with a little overshoot, so it
   // jumps bigger or smaller and wobbles before it settles. Between clicks it
   // breathes slowly in and out.
   const RING = {
-    min: 1.05, max: 1.35,       // ring radius range (× flower radius)
+    min: 1.04, max: 1.14,       // ring radius range (× the furthest petal tip)
+    minJump: 0.04,              // each new size differs at least this much
     spring: { freq: 1.6, damping: 0.22 },
-    breathe: 0.05               // ± slow breathing on top
+    breathe: 0.015              // ± slow breathing on top
   };
-  const ring = { goal: 1.18, angle: 1.18, speed: 0, last: 0 };
+
+  // Sounds (Web Audio, made in code — no sound files). Notes are from
+  // D minor, the key of the team's music (audio-mechanic.js), so they fit
+  // in when the music is playing.
+  const SOUND = {
+    volume: 1.5,                // overall level of my sounds (balanced against the music)
+    flowerNotes: [86, 81, 77, 74, 69],   // D6 A5 F5 D5 A4: a falling run of "dot" notes
+    landNote: 50,               // D3: the soft thump when a head lands
+    // a colour change: a soft two-note chime that rises with each click in
+    // a row (1/4, 2/4, 3/4), so the viewer hears the fall coming
+    colourChimes: [[74, 81], [77, 84], [81, 86]],   // D5+A5, F5+C6, A5+D6
+    leafGlide: [81, 74]         // A5 → D5: the leaf's airy glide down
+  };
+
+  // Spring state is kept in Maps keyed by the team's own objects, so my
+  // mechanic never has to add or change properties on their classes.
+  const leafSwing = new Map();    // leaf   → Spring (value = extra angle, radians)
+  const flowerBounce = new Map(); // flower → Spring (value = extra scale)
+  const stemSway = new Map();     // stem   → Spring (value = sideways offset of the top)
+  const stemOfFlower = new Map(); // flower → its stem, found once at the start
+  const fallingLeaves = new Map(); // leaf  → its FallingLeaf
+  const growingLeaves = new Map(); // leaf  → when it (re)starts growing
+  let plants = [];                 // PlantedFlowers, oldest first
+  let drawingPlants = false;       // true while drawPlantsBehind() is drawing them
+  let dents = [];                  // presses in the background net: { x, y, start }
+  const plantOf = new Map();       // flower / stem / leaf → the PlantedFlower it belongs to
 
   // Interaction state shared by the functions below.
-  let active = [];              // running flower effects
-  let colourWaves = [];         // running colour waves: { x, y, rgb, start }
-  // The cursor: its trail positions, its current size (eased towards a
-  // target), the colour it takes over a flower, and its press spring.
-  const cursor = { trail: [], size: 0, rgb: [245, 242, 235], inside: false, press: { angle: 0, speed: 0, last: 0 } };
-  let lastEffect = -1;
+  let ripples = [];             // Ripples after colour changes
+  let recolours = [];           // dots waiting for their new colour: { flower, dot, rgb, wiltRgb, at }
+  const touches = new Map();    // flower → { count, at } clicks in a row
+  let heads = [];               // FallingHeads
+  const headless = new Set();   // flowers whose head has fallen (hidden until they regrow)
   let lastClickAt = -Infinity;
+  let lastPlantAt = -Infinity;
   let intensity = 1.0;
-  let selection = 'random';
   let status = null;
   let keyboardIndex = -1;       // flower chosen with the arrow keys
 
@@ -161,6 +241,27 @@
   const clamp01 = (v) => Math.max(0, Math.min(1, v));
   const easeInOutSine = (v) => 0.5 - 0.5 * Math.cos(Math.PI * v);
   const strength = () => intensity * (reduceMotion ? 0.35 : 1);
+  const easeOutCubic = (v) => 1 - Math.pow(1 - v, 3);   // fast start, soft landing
+  const midiHz = (n) => 440 * Math.pow(2, (n - 69) / 12);   // MIDI note number → frequency (A4 = 69 = 440 Hz)
+
+  // Draw something with a lower canvas opacity, then put it back.
+  function withAlpha(alpha, draw) {
+    if (alpha >= 0.999 || typeof drawingContext === 'undefined') return draw();
+    const ctx = drawingContext;
+    const before = ctx.globalAlpha;
+    ctx.globalAlpha = before * Math.max(0, alpha);
+    try {
+      return draw();
+    } finally {
+      ctx.globalAlpha = before;
+    }
+  }
+
+  // Opacity of a part of a planted flower that is fading away (1 otherwise).
+  function plantAlpha(part, now) {
+    const plant = plantOf.get(part);
+    return plant ? plant.alpha(now) : 1;
+  }
 
   // The team stores dot colours in two ways: FlowerDotAnimator dots have an
   // [r, g, b] array, NoisyFlower dots have a p5 colour. This returns [r, g, b]
@@ -173,31 +274,808 @@
     return [232, 190, 160];
   }
 
-  // One step of a damped spring, using the real frame time.
-  //   acceleration = -w² · angle - 2 · z · w · speed     (w = 2π · freq)
+  // ================================================================ classes
+  // Each moving thing in my mechanic is one small class that keeps its own
+  // state and knows how to update and draw itself:
+  //   Spring        — a damped spring (leaf flutter, stem sway, flower bounce,
+  //                   cursor squeeze, hover ring size)
+  //   FallingLeaf   — a leaf that has been let go and drifts to the ground
+  //   FallingHead   — a flower head that has fallen off its stem
+  //   PlantedFlower — a seed → stem → leaf → flower planted by a click
+  //   Ripple        — the small ring of dots after a colour change
+  //   HoverRing     — the dotted ring around the flower under the mouse
+  //   DotCursor     — the Kusama-style dot that replaces the mouse arrow
+  //   Backdrop      — the background colour scheme, changed by empty-space clicks
+  //   GardenSounds  — the colour chime and the falling-flower and falling-leaf sounds
+  // The functions after the classes find what was clicked and hook these
+  // classes into the team's drawing.
+
+  // A damped spring, stepped with the real frame time.
+  //   acceleration = -w² · value - 2 · z · w · speed     (w = 2π · freq)
   // The first term pulls back to rest (stiffness), the second slows it down
-  // (damping). Speed is updated first, then the angle (semi-implicit Euler),
+  // (damping). Speed is updated first, then the value (semi-implicit Euler),
   // which stays stable at frame-rate steps. dt is capped at 50 ms so that a
   // pause (e.g. switching browser tabs) does not make the spring jump.
-  // Returns true once it has settled, so the caller can forget the state.
-  function stepSpring(state, spring, now) {
-    const dt = Math.min(0.05, (now - state.last) / 1000);
-    state.last = now;
-    const w = Math.PI * 2 * spring.freq;
-    const accel = -w * w * state.angle - 2 * spring.damping * w * state.speed;
-    state.speed += accel * dt;
-    state.angle += state.speed * dt;
-    return Math.abs(state.angle) < 0.0005 && Math.abs(state.speed) < 0.005;   // settled?
+  // "settings" is one of LEAF, BOUNCE, STEM, CURSOR.press or RING.spring.
+  class Spring {
+    constructor(settings, value = 0) {
+      this.settings = settings;
+      this.value = value;         // how far it is from rest
+      this.speed = 0;
+      this.last = performance.now();
+    }
+
+    // A click adds speed (it does not set the value directly), so quick
+    // repeated clicks add up naturally.
+    kick(speed) {
+      if (this.settled()) this.last = performance.now();   // start timing from now
+      this.speed += speed;
+    }
+
+    // Moves the spring on to time "now"; returns true once it has settled,
+    // so the caller can forget it.
+    step(now) {
+      const dt = Math.min(0.05, Math.max(0, (now - this.last) / 1000));
+      this.last = now;
+      const w = Math.PI * 2 * this.settings.freq;
+      const accel = -w * w * this.value - 2 * this.settings.damping * w * this.speed;
+      this.speed += accel * dt;
+      this.value += this.speed * dt;
+      return this.settled();
+    }
+
+    settled() {
+      return Math.abs(this.value) < 0.0005 && Math.abs(this.speed) < 0.005;
+    }
   }
 
+  // Map.get(key), or a new Spring stored under that key.
+  function springFor(map, key, settings) {
+    let spring = map.get(key);
+    if (!spring) {
+      spring = new Spring(settings);
+      map.set(key, spring);
+    }
+    return spring;
+  }
+
+  // A leaf that has been let go. Its stalk point falls at a speed that
+  // builds up to FALL.speed (1 − e^(−2.2t) — like air resistance), drifts
+  // with the shared wind, and rocks from side to side on a sine while it
+  // slowly turns — the "falling leaf" motion. On the ground it lies still,
+  // then fades. The team's WindLeaf draws it; only its position and angle
+  // are changed for that one drawing.
+  class FallingLeaf {
+    constructor(leaf) {
+      this.leaf = leaf;
+      this.x0 = leaf.uiX !== undefined ? leaf.uiX : leaf.px;   // where it was drawn last
+      this.x = this.x0;
+      this.y = leaf.py;
+      this.tilt0 = leaf.tilt;
+      this.rot = 0;
+      this.dir = leaf.direction === 1 ? 1 : -1;   // drifts to the side its tip points to
+      this.seed = Math.random() * 6.28;
+      this.drift = 0;
+      this.time = 0;
+      this.last = performance.now();
+      this.landedAt = null;
+      this.fade = 1;
+    }
+
+    // Moves it on to time "now". Returns false once it has faded away.
+    update(wind, now) {
+      const dt = Math.min(0.05, (now - this.last) / 1000);
+      this.last = now;
+
+      if (this.landedAt === null) {
+        this.time += dt;
+        const T = this.time;
+        this.y += FALL.speed * (1 - Math.exp(-2.2 * T)) * dt;
+        this.drift += (wind * 0.05 + this.dir * 0.02) * dt;
+        const rock = Math.sin(2.4 * T + this.seed);
+        this.x = this.x0 + this.drift + 0.04 * rock;
+        this.rot = this.dir * 0.25 * T + 0.45 * rock;       // mostly rocking, a slow turn
+        if (this.y >= FALL.ground) {
+          this.y = FALL.ground;
+          this.landedAt = now;
+          sounds.leafLand();                                // a soft tap on the ground
+        }
+        return true;
+      }
+      this.fade = 1 - clamp01((now - this.landedAt - FALL.rest) / FALL.fadeOut);
+      return this.fade > 0;
+    }
+
+    draw(t, alpha, teamDraw) {
+      const leaf = this.leaf;
+      const home = { px: leaf.px, py: leaf.py, tilt: leaf.tilt };
+      leaf.px = this.x;
+      leaf.py = this.y;
+      leaf.tilt = this.tilt0 + this.rot;
+      try {
+        withAlpha(alpha * this.fade, () => teamDraw.call(leaf, t, 0));
+      } finally {
+        leaf.px = home.px;                                  // the team's leaf is unchanged
+        leaf.py = home.py;
+        leaf.tilt = home.tilt;
+      }
+    }
+  }
+
+  // A flower head that has let go of its stem: a copy of its dots that
+  // speeds up under gravity until air resistance stops it speeding up
+  // (TOUCH.fallSpeed), sways a little and turns slowly. On the ground it
+  // rests, fades, and then the real flower regrows on its stem.
+  class FallingHead {
+    constructor(flower, dots) {
+      this.flower = flower;
+      this.dots = dots;
+      this.x0 = flower.nx + flowerShift(flower) / width;   // where its swaying stem holds it
+      this.x = this.x0;
+      this.y = flower.ny;
+      this.vy = 0;
+      this.rot = 0;
+      this.spin = (Math.random() < 0.5 ? -1 : 1) * (0.5 + Math.random() * 0.5);
+      this.seed = Math.random() * 6.28;
+      this.time = 0;
+      this.last = performance.now();
+      this.landedAt = null;
+      this.behind = plantOf.has(flower);   // planted flowers fall on their own layer
+      this.done = false;
+    }
+
+    update(now) {
+      if (this.behind && !plantOf.has(this.flower)) { this.done = true; return; }   // its plant has gone
+      const dt = Math.min(0.05, (now - this.last) / 1000);
+      this.last = now;
+      if (this.landedAt === null) {
+        this.time += dt;
+        this.vy = Math.min(TOUCH.fallSpeed, this.vy + 1.2 * dt);
+        this.y += this.vy * dt;
+        this.x = this.x0 + 0.012 * Math.sin(3 * this.time + this.seed);
+        this.rot += this.spin * dt;
+        const ground = 1 - (this.flower.nr * width * 0.55) / height;   // it rests on its edge
+        if (this.y >= ground) {
+          this.y = ground;
+          this.landedAt = now;
+          sounds.flowerLand(this.flower.nr);                // a soft thump
+        }
+      } else if (now - this.landedAt > TOUCH.rest + TOUCH.fadeOut + TOUCH.regrow) {
+        regrowFlower(this.flower);
+        this.done = true;
+      }
+    }
+
+    draw(now) {
+      let alpha = plantAlpha(this.flower, now);
+      if (this.landedAt !== null) alpha *= 1 - clamp01((now - this.landedAt - TOUCH.rest) / TOUCH.fadeOut);
+      if (alpha <= 0) return;
+      const R = this.flower.nr * width;
+      push();
+      noStroke();
+      translate(this.x * width, this.y * height);
+      rotate(this.rot);
+      for (const d of this.dots) {
+        fill(d.rgb[0], d.rgb[1], d.rgb[2], 255 * alpha);
+        circle(d.x * R, d.y * R, d.size * R);
+      }
+      pop();
+    }
+  }
+
+  // A flower planted by a click on empty space. It goes through three
+  // phases, moved on by update() every frame:
+  //   seed — a small dot in the new flower's colour drops to the ground
+  //   grow — a Stem rises from the ground to the click point, with a bud
+  //   live — a WindLeaf unfolds and the FlowerDotAnimator's bloom clock
+  //          starts now, so it draws itself; when it is complete, a
+  //          FlowerWilt (time mechanic) makes it wilt and regrow like the
+  //          others. All its parts are drawn together by draw().
+  // The flower, stem and leaf are the team's own classes.
+  class PlantedFlower {
+    constructor(nx, ny, now) {
+      this.nx = nx;
+      this.ny = ny;
+      const nr = PLANT.radius[0] + Math.random() * (PLANT.radius[1] - PLANT.radius[0]);
+      this.flower = new FlowerDotAnimator(nx, ny, nr);
+      this.flower.clockName = Math.random() < 0.5 ? 'sundial' : 'heartbeat';
+      this.groundX = nx + (Math.random() - 0.5) * 0.04;   // the stem leans a little
+      this.rgb = this.flower.pens[0].rgb;                 // outer petal colour, for the seed
+      this.stem = null;
+      this.leaf = null;
+      this.wilt = null;
+      this.phase = 'seed';
+      this.start = now;
+      this.leaving = null;                                // when it started to fade away
+      this.removed = false;
+      plantOf.set(this.flower, this);
+    }
+
+    // Still a seed or a growing stem (and not fading away)?
+    isGrowing() {
+      return this.phase !== 'live' && this.leaving === null;
+    }
+
+    // Opacity while it fades away (1 otherwise).
+    alpha(now) {
+      return this.leaving === null ? 1 : 1 - clamp01((now - this.leaving) / PLANT.fade);
+    }
+
+    fadeAway(now) {
+      this.leaving = now;
+    }
+
+    // Moves the plant on to its next phase and grows its stem. Runs before
+    // the team's draw() each frame.
+    update(now) {
+      const t = now - this.start;
+
+      if (this.phase === 'seed' && t >= PLANT.seedFall) {
+        this.stem = new Stem(this.nx, 1.02, this.groundX, 1.02, 0.022);
+        plantOf.set(this.stem, this);
+        stemOfFlower.set(this.flower, this.stem);
+        this.phase = 'grow';
+        this.start = now;
+      } else if (this.phase === 'grow') {
+        const k = clamp01(t / PLANT.grow);
+        this.stem.topY = 1.02 + (this.ny - 1.02) * easeOutCubic(k);
+        if (k >= 1) this.bloom(now);
+      }
+
+      if (this.leaving !== null && now - this.leaving >= PLANT.fade) this.remove();
+    }
+
+    // The stem has reached the click point: a leaf unfolds half way up, on
+    // a random side, and the flower starts its bloom clock.
+    bloom(now) {
+      if (typeof WindLeaf !== 'undefined') {
+        this.leaf = new WindLeaf(this.stem.pointAt(0.55), 0.12 + Math.random() * 0.05,
+          Math.random() < 0.5 ? 1 : -1, 0.2);
+        plantOf.set(this.leaf, this);
+        growingLeaves.set(this.leaf, { start: now });
+      }
+      this.flower.resetLayer();
+      this.flower.onCreated = () => this.startWilt();   // when complete, it wilts
+      this.flower.bloomStart = typeof clockNow === 'function' ? clockNow() : undefined;
+      // listed in the team's array so the other mechanics (e.g. the audio
+      // light) can find it; withBounce() keeps sketch.js from drawing it
+      if (typeof animatedFlowers !== 'undefined') animatedFlowers.push(this.flower);
+      this.phase = 'live';
+      this.start = now;
+    }
+
+    // The time mechanic's FlowerWilt finds a flower's stem and leaves in the
+    // team's lists (findStem / findLeaves). So the stem and leaf are put in
+    // those lists only while the FlowerWilt is made, then taken out again:
+    // the wilt keeps them, dries them and regrows them with the flower, but
+    // the team's draw() never draws them on a separate layer.
+    startWilt() {
+      if (typeof FlowerWilt === 'undefined') return;
+      const added = [];
+      if (this.stem && typeof stems !== 'undefined') { stems.push(this.stem); added.push([stems, this.stem]); }
+      if (this.leaf && typeof leaves !== 'undefined') { leaves.push(this.leaf); added.push([leaves, this.leaf]); }
+      try {
+        this.wilt = new FlowerWilt(this.flower);
+        if (typeof wilts !== 'undefined') wilts.push(this.wilt);   // visible to the audio mechanic
+      } finally {
+        for (const [list, item] of added) list.splice(list.indexOf(item), 1);
+      }
+    }
+
+    // Forget the plant once it has faded away.
+    remove() {
+      const flower = this.flower;
+      if (flower.layer) flower.layer.remove();
+      if (typeof animatedFlowers !== 'undefined' && animatedFlowers.includes(flower)) {
+        animatedFlowers.splice(animatedFlowers.indexOf(flower), 1);
+      }
+      if (typeof wilts !== 'undefined') {
+        for (let i = wilts.length - 1; i >= 0; i--) if (wilts[i].flower === flower) wilts.splice(i, 1);
+      }
+      for (const part of [flower, this.stem, this.leaf]) {
+        plantOf.delete(part);
+        fallingLeaves.delete(part);
+        growingLeaves.delete(part);
+        stemSway.delete(part);
+        leafSwing.delete(part);
+      }
+      stemOfFlower.delete(flower);
+      flowerBounce.delete(flower);
+      touches.delete(flower);
+      headless.delete(flower);
+      recolours = recolours.filter((r) => r.flower !== flower);
+      this.removed = true;
+    }
+
+    // Seed, stem, bud, leaf, flower and its wilting dots, all in one go, so
+    // the plant is always one piece on one layer.
+    draw(t, now, wind) {
+      const age = now - this.start;
+      const rgb = this.rgb;
+      push();
+      noStroke();
+      if (this.phase === 'seed') {
+        const k = clamp01(age / PLANT.seedFall);
+        const fall = k * k;                                 // speeds up as it drops, like gravity
+        const x = (this.nx + (this.groundX - this.nx) * fall) * width;
+        const y = (this.ny + (1.0 - this.ny) * fall) * height;
+        withAlpha(this.alpha(now), () => {
+          fill(rgb[0], rgb[1], rgb[2]);
+          circle(x, y, width * 0.014);
+        });
+      } else {
+        this.stem.draw();
+        if (this.phase === 'grow') {
+          const k = clamp01(age / PLANT.grow);
+          fill(66, 158, 84);                                // bud green, as in the time mechanic
+          circle(this.stem.topX * width, this.stem.topY * height, width * (0.012 + 0.012 * k));
+        } else {
+          if (this.leaf) this.leaf.draw(t, wind);
+          this.flower.update(t);
+          if (this.wilt) this.wilt.update(wind);
+        }
+      }
+      pop();
+    }
+  }
+
+  // The small ring of dots after a colour change: two thin rings in the new
+  // colour spread a little way out from the petal edge and fade.
+  class Ripple {
+    constructor(flower, rgb) {
+      this.flower = flower;
+      this.rgb = rgb;
+      this.start = performance.now();
+      this.reach = TOUCH.rippleReach[0] + Math.random() * (TOUCH.rippleReach[1] - TOUCH.rippleReach[0]);
+    }
+
+    finished(now) {
+      return now - this.start >= TOUCH.ripple;
+    }
+
+    draw(now) {
+      const flower = this.flower;
+      if (headless.has(flower)) return;
+      const p = (now - this.start) / TOUCH.ripple;
+      const cx = flower.nx * width + flowerShift(flower);
+      const cy = flower.ny * height;
+      const R = flower.nr * width;
+      const dot = Math.max(1.5, R * 0.022);
+      for (let i = 0; i < 2; i++) {
+        const q = clamp01((p - i * 0.2) / 0.8);
+        if (q <= 0 || q >= 1) continue;
+        const grow = 1.04 + this.reach * easeInOutSine(q);     // starts just outside the petals
+        fill(this.rgb[0], this.rgb[1], this.rgb[2], 230 * (1 - q) * (1 - i * 0.35));
+        const count = Math.max(24, Math.floor((Math.PI * 2 * grow * R) / (dot * 3)));
+        for (let j = 0; j < count; j++) {
+          const a = (j / count) * Math.PI * 2 + i * 0.25;
+          const r = edgeOf(flower, a) * grow * R;              // the ring follows the petal shape
+          circle(cx + Math.cos(a) * r, cy + Math.sin(a) * r, dot);
+        }
+      }
+    }
+  }
+
+  // A ring of small white dots slowly circles the flower that can be
+  // clicked (mouse hover or keyboard). It turns slowly and a brightness
+  // wave runs round it. Its size: "goal" is the size it is heading for, and
+  // a Spring holds how far the ring still is from the goal, so a new goal
+  // makes it jump there with a little overshoot.
+  class HoverRing {
+    constructor() {
+      this.goal = 1.08;
+      this.spring = new Spring(RING.spring);
+      this.reach = new Map();           // flower → its furthest petal tip (× radius)
+    }
+
+    // How far the flower's furthest petal tip is from its centre, in
+    // radii, found once from the petal outline at 72 angles. The ring is
+    // drawn just outside this, so it hugs the flower whatever its shape.
+    tipOf(flower) {
+      if (!this.reach.has(flower)) {
+        let most = 0;
+        for (let i = 0; i < 72; i++) most = Math.max(most, edgeOf(flower, (i / 72) * Math.PI * 2));
+        this.reach.set(flower, most > 0 ? most : 1);
+      }
+      return this.reach.get(flower);
+    }
+
+    current() {
+      return this.goal + this.spring.value;
+    }
+
+    // Ring size right now (× flower radius), with a slow breathing on top.
+    size(now) {
+      this.spring.step(now);
+      return this.current() * (1 + RING.breathe * Math.sin(now / 900));
+    }
+
+    // A new random size, at least RING.minJump away from the current goal, so every
+    // click visibly makes the ring bigger or smaller. The ring stays where it
+    // is for now, and the spring carries it to the new goal.
+    jump() {
+      const before = this.current();
+      let next;
+      do {
+        next = RING.min + Math.random() * (RING.max - RING.min);
+      } while (Math.abs(next - this.goal) < RING.minJump);
+      this.goal = next;
+      this.spring.value = before - next;
+    }
+
+    draw(now, flower) {
+      const R = flower.nr * width;
+      const cx = flower.nx * width + flowerShift(flower);
+      const cy = flower.ny * height;
+      const tip = this.tipOf(flower);
+      const ringR = R * tip * this.size(now);
+      const count = Math.round(30 * tip * this.current());   // more dots on a bigger ring
+      const turn = now / 6000;                          // one turn every ~38 s
+      const dot = Math.max(2, R * 0.034);
+      for (let i = 0; i < count; i++) {
+        const a = (i / count) * Math.PI * 2 + turn;
+        const glint = 0.7 + 0.3 * Math.sin(a * 3 - now / 500);   // a slow shimmer runs round the ring
+        fill(255, 255, 255, 230 * glint);
+        circle(cx + Math.cos(a) * ringR, cy + Math.sin(a) * ringR, dot);
+      }
+    }
+  }
+
+  // The dot cursor. Each trail dot moves a fixed fraction of the way towards
+  // the dot in front of it every frame, so the trail lags behind and curls
+  // when the mouse turns. Over something clickable the dot grows and takes
+  // that thing's colour; a click squeezes it on a quick spring.
+  class DotCursor {
+    constructor() {
+      this.trail = [];                  // trail dot positions; [0] is the mouse
+      this.size = 0;                    // eased towards the target size
+      this.rgb = [245, 242, 235];       // eased towards the target colour
+      this.inside = false;              // is the pointer over the canvas?
+      this.press = new Spring(CURSOR.press);
+    }
+
+    squeeze() {
+      this.press.kick(CURSOR.press.kick);
+    }
+
+    // target: { rgb } of what is under the mouse, or null over empty space.
+    draw(now, target, hidden) {
+      // hidden when the pointer has left the canvas (p5 keeps the last
+      // mouseX) or while the keyboard is being used
+      if (!this.inside || hidden) {
+        this.trail = [];
+        return;
+      }
+
+      if (!this.trail.length) {
+        for (let i = 0; i <= CURSOR.trail; i++) this.trail.push({ x: mouseX, y: mouseY });
+      }
+      this.trail[0].x = mouseX;
+      this.trail[0].y = mouseY;
+      for (let i = 1; i < this.trail.length; i++) {
+        const a = this.trail[i];
+        const b = this.trail[i - 1];
+        a.x += (b.x - a.x) * CURSOR.follow;
+        a.y += (b.y - a.y) * CURSOR.follow;
+      }
+
+      // size and colour ease towards what is under the mouse
+      const goal = (target ? CURSOR.hoverSize : CURSOR.size) * width;
+      this.size += (goal - this.size) * 0.2;
+      const goalRgb = target ? target.rgb : [245, 242, 235];
+      this.rgb = this.rgb.map((c, i) => c + (goalRgb[i] - c) * 0.15);
+
+      this.press.step(now);
+      const squeeze = Math.max(0.4, 1 + this.press.value);
+
+      // trail dots: smaller and fainter towards the end
+      for (let i = this.trail.length - 1; i >= 1; i--) {
+        const k = 1 - i / (this.trail.length + 1);
+        fill(this.rgb[0], this.rgb[1], this.rgb[2], 200 * k);
+        circle(this.trail[i].x, this.trail[i].y, this.size * 0.55 * k);
+      }
+
+      // the dot itself: a plain solid dot, no outline
+      fill(this.rgb[0], this.rgb[1], this.rgb[2]);
+      circle(mouseX, mouseY, this.size * squeeze);
+    }
+  }
+
+  // The colour chime and the falling-flower and falling-leaf sounds, made
+  // with the Web Audio API
+  // (oscillators and filtered noise — no sound files).
+  //   https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API
+  // Browsers only allow sound after the visitor has clicked, so the first
+  // sound is made inside the click handler.
+  // Link to the audio mechanic: while the team's music is playing, my sounds
+  // go into its master volume (window.GroupEGeneratedAudio.master). That
+  // way the music's volume slider controls them too, and its analyser
+  // "hears" them, so a falling flower also makes the audio light pulse.
+  // When the music is off, they play through a small output of my own.
+  class GardenSounds {
+    constructor() {
+      this.ctx = null;                  // my own AudioContext, made on the first sound
+      this.out = null;                  // its output volume
+      this.enabled = true;              // the "Sounds" switch in the panel
+      this.noise = new Map();           // AudioContext → 2 s of white noise
+    }
+
+    // Where to play: { ctx, dest }, or null when sound is off or unsupported.
+    output() {
+      if (!this.enabled) return null;
+      const music = window.GroupEGeneratedAudio;
+      if (music && music.playing && music.ctx && music.master && music.ctx.state === 'running') {
+        return { ctx: music.ctx, dest: music.master };
+      }
+      if (!this.ctx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return null;
+        try {
+          this.ctx = new AC();
+        } catch (e) {
+          this.enabled = false;
+          return null;
+        }
+        // same level and a gentle limiter, like the music's own output
+        this.out = this.ctx.createGain();
+        this.out.gain.value = 0.55;
+        const limiter = this.ctx.createDynamicsCompressor();
+        this.out.connect(limiter);
+        limiter.connect(this.ctx.destination);
+      }
+      if (this.ctx.state === 'suspended') {
+        const resumed = this.ctx.resume();
+        if (resumed && resumed.catch) resumed.catch(() => {});   // blocked until a click
+      }
+      return { ctx: this.ctx, dest: this.out };
+    }
+
+    // White noise, made once per AudioContext, used for air and rustles.
+    noiseFor(ctx) {
+      if (!this.noise.has(ctx)) {
+        const buffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 2), ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+        this.noise.set(ctx, buffer);
+      }
+      return this.noise.get(ctx);
+    }
+
+    // A gain envelope: silent → peak after "attack" s → silent at "length" s.
+    // Exponential ramps sound natural for loudness; they cannot reach 0,
+    // so 0.0001 stands for silence.
+    envelope(ctx, at, attack, length, peak) {
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak * SOUND.volume), at + attack);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + length);
+      return g;
+    }
+
+    // One soft "dot" note: a sine with a quiet octave above, like a small bell.
+    tone(o, midi, at, length, peak) {
+      const g = this.envelope(o.ctx, at, 0.01, length, peak);
+      g.connect(o.dest);
+      for (const [mult, level] of [[1, 1], [2, 0.18]]) {
+        const osc = o.ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.value = midiHz(midi) * mult;
+        const v = o.ctx.createGain();
+        v.gain.value = level;
+        osc.connect(v);
+        v.connect(g);
+        osc.start(at);
+        osc.stop(at + length + 0.05);
+      }
+    }
+
+    // Noise through a band-pass filter whose centre slides from "fromHz" to
+    // "toHz": a breath of air (wide) or a rustle (narrow). Returns its
+    // volume node, already connected to the output. A band-pass lets only
+    // part of the noise through (about a fifth of its loudness), so noise
+    // peaks are set higher than note peaks to sound about as loud.
+    breath(o, at, length, fromHz, toHz, q, peak, attack = 0.05) {
+      const src = o.ctx.createBufferSource();
+      src.buffer = this.noiseFor(o.ctx);
+      const filter = o.ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.Q.value = q;
+      filter.frequency.setValueAtTime(fromHz, at);
+      filter.frequency.exponentialRampToValueAtTime(toHz, at + length);
+      const g = this.envelope(o.ctx, at, attack, length, peak);
+      src.connect(filter);
+      filter.connect(g);
+      g.connect(o.dest);
+      src.start(at, Math.random());           // start somewhere in the noise
+      src.stop(at + length + 0.05);
+      return g;
+    }
+
+    // The flower head lets go: a soft snap, then a falling run of dot notes
+    // (the dots tumbling down) over a breath of air that drops in pitch.
+    // Bigger flowers sound a fourth lower.
+    flowerFall(flower) {
+      const o = this.output();
+      if (!o) return;
+      const at = o.ctx.currentTime + 0.01;
+      const shift = flower && flower.nr > 0.14 ? -5 : 0;
+      this.breath(o, at, 0.08, 2600, 1800, 1.5, 0.6, 0.005);               // snap
+      SOUND.flowerNotes.forEach((note, i) => {
+        this.tone(o, note + shift, at + 0.04 + i * 0.11, 0.9, 0.12 * (1 - i * 0.12));
+      });
+      this.breath(o, at + 0.05, 1.1, 2400, 450, 1.1, 0.35, 0.25);           // air
+    }
+
+    // The head lands: a soft low thump (a sine that drops in pitch) and a
+    // little puff of dust.
+    flowerLand(nr = 0.12) {
+      const o = this.output();
+      if (!o) return;
+      const at = o.ctx.currentTime + 0.01;
+      const low = midiHz(SOUND.landNote + (nr > 0.14 ? -5 : 0));
+      const g = this.envelope(o.ctx, at, 0.006, 0.4, 0.2);
+      const osc = o.ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(low * 1.8, at);
+      osc.frequency.exponentialRampToValueAtTime(low, at + 0.12);
+      osc.connect(g);
+      g.connect(o.dest);
+      osc.start(at);
+      osc.stop(at + 0.45);
+      this.breath(o, at, 0.3, 900, 300, 0.8, 0.36, 0.01);                   // dust
+    }
+
+    // A leaf lets go. Four layers:
+    //   tick    — a tiny dry snap as the stalk breaks
+    //   rustle  — papery noise that drifts down in pitch and flutters in
+    //             loudness (an LFO, a slow oscillator, moves its volume up
+    //             and down, slowing from 7 to 2.5 times a second, like the
+    //             leaf rocking on its way down)
+    //   crinkle — a dozen tiny random crackles that thin out, like a dry
+    //             leaf brushing the air
+    //   glide   — a very quiet sine sliding from A5 down to D5: the drift
+    leafFall() {
+      const o = this.output();
+      if (!o) return;
+      const ctx = o.ctx;
+      const at = ctx.currentTime + 0.01;
+      this.breath(o, at, 0.05, 5200, 4200, 2, 0.48, 0.003);                 // tick
+
+      const rustle = this.breath(o, at + 0.02, 2.2, 3800, 1300, 1.0, 0.48, 0.15);
+      const flutter = ctx.createGain();
+      flutter.gain.value = 0.65;
+      rustle.disconnect();
+      rustle.connect(flutter);
+      flutter.connect(o.dest);
+      const lfo = ctx.createOscillator();
+      lfo.frequency.setValueAtTime(7, at);
+      lfo.frequency.linearRampToValueAtTime(2.5, at + 2.2);
+      const depth = ctx.createGain();
+      depth.gain.value = 0.35;
+      lfo.connect(depth);
+      depth.connect(flutter.gain);
+      lfo.start(at);
+      lfo.stop(at + 2.3);
+
+      let t = at + 0.06;
+      for (let i = 0; i < 12; i++) {                                         // crinkle
+        t += 0.05 + Math.random() * 0.12 * (1 + i / 6);                      // further apart over time
+        const hz = 2800 + Math.random() * 2600;
+        this.breath(o, t, 0.03 + Math.random() * 0.03, hz, hz * 0.8, 0.9, 0.4 * (1 - i / 14), 0.003);
+      }
+
+      const glide = this.envelope(ctx, at, 0.3, 1.8, 0.04);                  // glide
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(midiHz(SOUND.leafGlide[0]), at);
+      osc.frequency.exponentialRampToValueAtTime(midiHz(SOUND.leafGlide[1]), at + 1.8);
+      osc.connect(glide);
+      glide.connect(o.dest);
+      osc.start(at);
+      osc.stop(at + 1.9);
+    }
+
+    // The leaf touches the ground: a soft, short tap.
+    leafLand() {
+      const o = this.output();
+      if (!o) return;
+      this.breath(o, o.ctx.currentTime + 0.01, 0.12, 1400, 700, 1.2, 1.9, 0.005);
+    }
+
+    // A colour change: a soft two-note chime (the second note a fifth or
+    // fourth above, a moment later), higher on each click in a row.
+    colourChange(count) {
+      const o = this.output();
+      if (!o) return;
+      const at = o.ctx.currentTime + 0.01;
+      const chime = SOUND.colourChimes[Math.min(count, SOUND.colourChimes.length) - 1];
+      this.tone(o, chime[0], at, 0.7, 0.19);
+      this.tone(o, chime[1], at + 0.07, 0.8, 0.14);
+    }
+  }
+
+  // The background's colour scheme (see BACKDROPS). "from" is the scheme
+  // being covered and "to" the one spreading out from the click at (x, y).
+  class Backdrop {
+    constructor() {
+      this.from = 0;
+      this.to = 0;
+      this.start = -Infinity;
+      this.x = 0;
+      this.y = 0;
+    }
+
+    scheme(i) {
+      if (BACKDROPS[i]) return BACKDROPS[i];
+      return {
+        bg: typeof MIDNIGHT !== 'undefined' ? MIDNIGHT : [6, 8, 18],
+        net: typeof NET_BLUES !== 'undefined' ? NET_BLUES : []
+      };
+    }
+
+    // 0 → 1 while the new colour spreads, then 1.
+    progress(now) {
+      return clamp01((now - this.start) / BACKDROP.spread);
+    }
+
+    // Is anything different from the team's own colours right now?
+    changed(now) {
+      return this.to !== 0 || this.progress(now) < 1;
+    }
+
+    // An empty-space click at (x, y) in pixels: the next scheme spreads
+    // from there. A click during a change finishes the old one at once.
+    next(x, y, now) {
+      this.from = this.to;
+      this.to = (this.to + 1) % BACKDROPS.length;
+      this.start = now;
+      this.x = x;
+      this.y = y;
+    }
+
+    // Draws the background: the old colour, then the new colour as a
+    // circle growing from the click until it covers the whole canvas.
+    drawBackground(teamBackground, now) {
+      const k = this.progress(now);
+      const to = this.scheme(this.to).bg;
+      if (k >= 1) return teamBackground(to[0], to[1], to[2]);
+      const from = this.scheme(this.from).bg;
+      teamBackground(from[0], from[1], from[2]);
+      const far = Math.max(Math.hypot(this.x, this.y), Math.hypot(width - this.x, this.y),
+        Math.hypot(this.x, height - this.y), Math.hypot(width - this.x, height - this.y));
+      push();
+      noStroke();
+      fill(to[0], to[1], to[2]);
+      circle(this.x, this.y, 2 * far * easeOutCubic(k));
+      pop();
+    }
+
+    // The colour of net line colour number i (its place in NET_BLUES).
+    netColour(i, now) {
+      const a = this.scheme(this.from).net[i];
+      const b = this.scheme(this.to).net[i];
+      if (!a || !b) return b || a;
+      const k = easeInOutSine(this.progress(now));
+      return a.map((c, j) => c + (b[j] - c) * k);
+    }
+  }
+
+  // The single cursor, hover ring, sound player and backdrop used below.
+  const backdrop = new Backdrop();
+  const cursor = new DotCursor();
+  const ring = new HoverRing();
+  const sounds = new GardenSounds();
+
   // ------------------------------------------------------- the team's flowers
-  // All clickable flowers: the self-drawing ones and the noisy ones.
+  // All clickable flowers: the team's self-drawing and noisy ones, plus the
+  // flowers planted by clicks.
   // typeof checks keep this file working even if a teammate renames a list.
   function flowers() {
     const list = [];
     if (typeof animatedFlowers !== 'undefined') list.push(...animatedFlowers);
     if (typeof noisyFlowers !== 'undefined') list.push(...noisyFlowers);
-    return list;
+    for (const plant of plants) if (plant.phase === 'live') list.push(plant.flower);   // planted ones
+    return [...new Set(list)];                              // planted ones are also in animatedFlowers
   }
 
   // nx, ny are 0–1 canvas coordinates; returns the flower under that point.
@@ -208,6 +1086,7 @@
     let best = null;
     let bestDistance = Infinity;
     for (const flower of flowers()) {
+      if (!flowerVisible(flower)) continue;
       const d = Math.hypot(nx - flower.nx, (ny - flower.ny) * height / width);
       if (d < flower.nr * 1.15 && d < bestDistance) {
         best = flower;
@@ -218,6 +1097,28 @@
   }
 
   // Edge of the flower (in flower units) in the direction of angle a.
+  // Whether a flower can be seen right now. While the time mechanic shows only
+  // a dry stem (after most dots have fallen, until the flower regrows), its
+  // place counts as empty space, so a click there plants a new flower.
+  function flowerVisible(flower) {
+    if (headless.has(flower)) return false;                 // its head has fallen off
+    if (typeof clockNow !== 'function' || typeof MATURE_SECONDS === 'undefined') return true;
+    const gone = MATURE_SECONDS + WILT_SECONDS * 0.7;      // most dots have fallen by then
+    const life = flower.life;                               // a noisy flower's NoisyFlowerLife
+    if (life && life.clock) {
+      const now = clockNow() - life.clock.start;
+      if (now < 0) return true;                             // still a bud
+      return now % life.period < life.clock.bloom + gone;
+    }
+    if (flower.finished && typeof wilts !== 'undefined') {  // a finished self-drawing flower
+      const plant = plantOf.get(flower);
+      const wilt = plant ? plant.wilt : wilts.find((w) => w.flower === flower && !w.gone);
+      if (!wilt || wilt.gone) return true;
+      return wilt.phase === 'wilt' && wilt.timer.seconds() < gone;
+    }
+    return true;                                            // still drawing itself
+  }
+
   // Both flower classes have outline(angle), which gives the petal edge as a
   // multiple of the radius in that direction (spiky or rounded petals).
   function edgeOf(flower, a) {
@@ -230,14 +1131,19 @@
   function withBounce(getFlower, original) {
     return function (...args) {
       const flower = getFlower(this);
-      const state = flower && flowerBounce.get(flower);
+      if (flower && headless.has(flower)) return;          // its head has fallen off
+      // planted flowers are listed in the team's arrays (so the audio mechanic
+      // can light them too) but only drawn by drawPlantsBehind()
+      if (flower && plantOf.has(flower) && !drawingPlants) return;
+      const spring = flower && flowerBounce.get(flower);
       const shift = flower ? flowerShift(flower) : 0;      // carried by a swaying stem
-      if (!state && !shift) return original.apply(this, args);
+      const alpha = flower ? plantAlpha(flower, performance.now()) : 1;
+      if (!spring && !shift) return withAlpha(alpha, () => original.apply(this, args));
 
       let grow = 1;
-      if (state) {
-        if (stepSpring(state, BOUNCE, performance.now())) flowerBounce.delete(flower);
-        grow = 1 + state.angle;
+      if (spring) {
+        if (spring.step(performance.now())) flowerBounce.delete(flower);
+        grow = 1 + spring.value;
       }
       const cx = flower.nx * width;
       const cy = flower.ny * height;
@@ -249,7 +1155,7 @@
       scale(grow);
       translate(-cx, -cy);
       try {
-        return original.apply(this, args);
+        return withAlpha(alpha, () => original.apply(this, args));
       } finally {
         pop();
       }
@@ -276,43 +1182,9 @@
     }
   }
 
-  // A click adds speed to the flower's spring (it does not set the size
-  // directly), so quick repeated clicks add up naturally.
+  // A click kicks the flower's spring, so the head grows and settles back.
   function bounceFlower(flower) {
-    const state = flowerBounce.get(flower) || { angle: 0, speed: 0, last: performance.now() };
-    state.speed += BOUNCE.kick * strength();
-    flowerBounce.set(flower, state);
-  }
-
-  // ------------------------------------------------ gust in the team's wind
-  // windStrength(t) from perlin-layer.js drives the leaves and the falling
-  // wilted dots. BREEZE adds a gust on top, in the direction it blows.
-  // p is the progress of the effect (0–1). The gust rises over the first
-  // 25 % and dies away over the remaining 75 %, like a real gust of wind.
-  function gustEnvelope(p) {
-    if (p <= 0 || p >= 1) return 0;
-    return p < 0.25 ? easeInOutSine(p / 0.25) : easeInOutSine(1 - (p - 0.25) / 0.75);
-  }
-
-  // Sum of all running breezes. Math.sign(windX) makes the gust blow left or
-  // right, the same way as the loose dots.
-  function currentGust(now) {
-    let gust = 0;
-    for (const pulse of active) {
-      if (pulse.type !== 'breeze') continue;
-      gust += gustEnvelope((now - pulse.start) / LIFETIME) * GUST * strength() * Math.sign(pulse.windX || 1);
-    }
-    return gust;
-  }
-
-  // window.windStrength is the global function from perlin-layer.js, so
-  // replacing it here changes the wind for every leaf and falling dot.
-  function wrapWind() {
-    if (typeof window.windStrength !== 'function') return;
-    const teamWind = window.windStrength;
-    window.windStrength = function (t) {
-      return teamWind(t) + currentGust(performance.now());
-    };
+    springFor(flowerBounce, flower, BOUNCE).kick(BOUNCE.kick * strength());
   }
 
   // ---------------------------------------------------------- leaves (spring)
@@ -331,32 +1203,58 @@
     return leaf.direction === 1 ? -leaf.tilt + swing : Math.PI + leaf.tilt - swing;
   }
 
-  // Each frame: step the leaf's spring, then draw the leaf with
-  //   wind + springAngle / (0.28 · lengthFactor)
-  // which makes WindLeaf.draw() rotate it by exactly springAngle more.
+  // Each frame, a leaf is drawn in one of three ways:
+  //   falling  — at its falling position and angle (drawFallingLeaf)
+  //   growing  — at its stem, scaled up from nothing (a new leaf)
+  //   normal   — at its stem, with its flutter spring and stem sway added:
+  //              wind + springAngle / (0.28 · lengthFactor) makes
+  //              WindLeaf.draw() rotate it by exactly springAngle more.
   function wrapLeaves() {
     if (typeof WindLeaf === 'undefined') return;
     const teamDraw = WindLeaf.prototype.draw;
     WindLeaf.prototype.draw = function (t, wind) {
-      const state = leafSwing.get(this);
+      const now = performance.now();
+      const alpha = plantAlpha(this, now);
+
+      const fall = fallingLeaves.get(this);
+      if (fall) {
+        if (fall.update(wind, now)) return fall.draw(t, alpha, teamDraw);
+        fallingLeaves.delete(this);                           // gone: a new leaf will grow
+        growingLeaves.set(this, { start: now + FALL.regrowDelay });
+        return;
+      }
+
+      // a new leaf grows from nothing to its full length
+      let size = 1;
+      const grow = growingLeaves.get(this);
+      if (grow) {
+        if (now < grow.start) return;                       // not grown back yet
+        const k = clamp01((now - grow.start) / FALL.regrow);
+        size = 0.05 + 0.95 * easeOutCubic(k);
+        if (k >= 1) growingLeaves.delete(this);
+      }
+
+      const spring = leafSwing.get(this);
       let extra = 0;
-      if (state) {
-        if (stepSpring(state, LEAF, performance.now())) leafSwing.delete(this);
-        extra = state.angle;
+      if (spring) {
+        if (spring.step(now)) leafSwing.delete(this);
+        extra = spring.value;
       }
       // a leaf on a swaying stem is carried sideways with it
       const follow = leafOnSwayingStem(this);
-      const homeX = this.px;
+      const home = { px: this.px, lengthN: this.lengthN };
       if (follow) this.px += follow.offset;
+      this.lengthN = home.lengthN * size;
 
       // remember what was drawn, so a click can be tested against it
       const lf = leafLengthFactor(this);
       this.uiSwing = (wind * 0.28) * lf + extra;
       try {
-        return teamDraw.call(this, t, wind + extra / (0.28 * lf));
+        return withAlpha(alpha, () => teamDraw.call(this, t, wind + extra / (0.28 * lf)));
       } finally {
         this.uiX = this.px;
-        this.px = homeX;
+        this.px = home.px;
+        this.lengthN = home.lengthN;
       }
     };
   }
@@ -380,25 +1278,33 @@
     return { along: along / L, across };
   }
 
-  // Leaves drawn later are on top, so they are tested first.
+  // Leaves drawn later are on top, so they are tested first. Falling and
+  // regrowing leaves cannot be clicked.
   function leafAt(x, y) {
-    if (typeof leaves === 'undefined') return null;
-    for (let i = leaves.length - 1; i >= 0; i--) {   // top-most first
-      const hit = leafHit(leaves[i], x, y);
-      if (hit) return { leaf: leaves[i], hit };
+    const list = allLeaves();
+    for (let i = list.length - 1; i >= 0; i--) {     // top-most first
+      if (fallingLeaves.has(list[i]) || growingLeaves.has(list[i])) continue;
+      const hit = leafHit(list[i], x, y);
+      if (hit) return { leaf: list[i], hit };
     }
     return null;
   }
 
-  // Flick the leaf away from the finger: the tip moves to the other side
-  // of the click, harder when the click is near the tip.
-  function kickLeaf(leaf, hit) {
-    const state = leafSwing.get(leaf) || { angle: 0, speed: 0, last: performance.now() };
-    const away = hit.across > 0 ? -1 : 1;                 // screen rotation direction
-    const toSwing = leaf.direction === 1 ? 1 : -1;        // swing turns the other way on mirrored leaves
-    state.speed += away * toSwing * LEAF.kick * strength() * (0.45 + 0.55 * hit.along);
-    leafSwing.set(leaf, state);
-    if (status) status.textContent = 'Leaf';
+  // The planted plants are drawn behind the team's plants, so they come
+  // first in these lists (the last one is tested first, as the top-most).
+  function allLeaves() {
+    const list = plants.filter((p) => p.leaf).map((p) => p.leaf);
+    if (typeof leaves !== 'undefined') list.push(...leaves);
+    return list;
+  }
+
+  // Let go of a leaf: it starts falling from where it is now (FallingLeaf),
+  // with a rustling sound.
+  function dropLeaf(leaf) {
+    leafSwing.delete(leaf);
+    fallingLeaves.set(leaf, new FallingLeaf(leaf));
+    sounds.leafFall();
+    if (status) status.textContent = 'A leaf falls';
   }
 
   // ----------------------------------------------------------- stems (sway)
@@ -407,7 +1313,9 @@
   // A rigid lean is a good match for a short sway and keeps Stem.draw()
   // unchanged: only the top point moves, the base stays planted.
   function stemsList() {
-    return typeof stems !== 'undefined' ? stems : [];
+    const list = plants.filter((p) => p.stem).map((p) => p.stem);
+    if (typeof stems !== 'undefined') list.push(...stems);
+    return list;
   }
 
   // Which stem holds this flower: the stem whose top is nearest the flower
@@ -427,8 +1335,8 @@
   // Sideways offset of the flower head in pixels (0 if its stem is still).
   function flowerShift(flower) {
     const stem = stemFor(flower);
-    const state = stem && stemSway.get(stem);
-    return state ? state.angle * width : 0;
+    const spring = stem && stemSway.get(stem);
+    return spring ? spring.value * width : 0;
   }
 
   // How far along the stem a point is (0 = top, 1 = base) and how far from it.
@@ -447,9 +1355,9 @@
   // width) moves sideways by the sway at its height: full sway at the top
   // (f = 0), none at the base (f = 1).
   function leafOnSwayingStem(leaf) {
-    for (const [stem, state] of stemSway) {
+    for (const [stem, spring] of stemSway) {
       const where = alongStem(stem, leaf.px * width, leaf.py * height);
-      if (where.distance < width * 0.012) return { offset: state.angle * (1 - where.f) };
+      if (where.distance < width * 0.012) return { offset: spring.value * (1 - where.f) };
     }
     return null;
   }
@@ -458,13 +1366,14 @@
     if (typeof Stem === 'undefined') return;
     const teamDraw = Stem.prototype.draw;
     Stem.prototype.draw = function (...args) {
-      const state = stemSway.get(this);
-      if (!state) return teamDraw.apply(this, args);
-      if (stepSpring(state, STEM, performance.now())) stemSway.delete(this);
+      const alpha = plantAlpha(this, performance.now());
+      const spring = stemSway.get(this);
+      if (!spring) return withAlpha(alpha, () => teamDraw.apply(this, args));
+      if (spring.step(performance.now())) stemSway.delete(this);
       const homeX = this.topX;
-      this.topX = homeX + state.angle;          // lean for this drawing only
+      this.topX = homeX + spring.value;          // lean for this drawing only
       try {
-        return teamDraw.apply(this, args);
+        return withAlpha(alpha, () => teamDraw.apply(this, args));
       } finally {
         this.topX = homeX;                      // the team's stem is unchanged
       }
@@ -486,79 +1395,140 @@
   // Push the stem away from the finger; a push high up moves it more.
   // Its leaves give a small flutter of their own as the stem starts to move.
   function pushStem(stem, f, clickX) {
-    const state = stemSway.get(stem) || { angle: 0, speed: 0, last: performance.now() };
     const stemX = (stem.topX + (stem.bottomX - stem.topX) * f) * width;
     const away = clickX < stemX ? 1 : -1;
-    state.speed += away * STEM.kick * strength() * (0.4 + 0.6 * (1 - f));
-    stemSway.set(stem, state);
+    springFor(stemSway, stem, STEM).kick(away * STEM.kick * strength() * (0.4 + 0.6 * (1 - f)));
 
     // Secondary motion: as the stem jerks one way, its leaves lag behind and
     // flick the other way, which makes the plant look flexible, not rigid.
-    if (typeof leaves !== 'undefined') {
-      for (const leaf of leaves) {
-        if (alongStem(stem, leaf.px * width, leaf.py * height).distance < width * 0.012) {
-          const ls = leafSwing.get(leaf) || { angle: 0, speed: 0, last: performance.now() };
-          ls.speed += -away * (leaf.direction === 1 ? 1 : -1) * 1.4 * strength();
-          leafSwing.set(leaf, ls);
-        }
+    for (const leaf of allLeaves()) {
+      if (fallingLeaves.has(leaf)) continue;
+      if (alongStem(stem, leaf.px * width, leaf.py * height).distance < width * 0.012) {
+        springFor(leafSwing, leaf, LEAF).kick(-away * (leaf.direction === 1 ? 1 : -1) * 1.4 * strength());
       }
     }
     if (status) status.textContent = 'Stem';
   }
 
-  // ------------------------------------------------------ colour wave (net)
-  // A click starts a wave at the click point. Each background line is lit
-  // when the wave front passes its position: a vertical line is reached when
-  // the front has travelled its horizontal distance from the click, and a
-  // horizontal line its vertical distance. So the colour runs out along the
-  // net's rows and columns, like dye spreading through a woven net.
-  function startColourWave(x, y, rgb) {
-    colourWaves.push({ x, y, rgb, start: performance.now() });
-    if (colourWaves.length > 4) colourWaves.shift();
+  // ------------------------------------------------------ planting flowers
+  // A click on empty space plants a PlantedFlower there (see the class).
+  function plantFlower(nx, ny) {
+    const now = performance.now();
+    if (typeof FlowerDotAnimator === 'undefined' || typeof Stem === 'undefined') return;
+
+    // one seed at a time: wait until the last one has grown and a short
+    // pause has passed, so the garden does not fill up with stems at once
+    if (plants.some((p) => p.isGrowing()) || now - lastPlantAt < PLANT.cooldown) {
+      if (status) status.textContent = 'Wait for the last seed to grow';
+      return;
+    }
+    lastPlantAt = now;
+
+    nx = Math.min(0.94, Math.max(0.06, nx));
+    ny = Math.min(0.85, Math.max(0.1, ny));
+    plants.push(new PlantedFlower(nx, ny, now));
+
+    // keep at most PLANT.max: the oldest grown one fades away
+    const staying = plants.filter((p) => p.leaving === null);
+    if (staying.length > PLANT.max) staying[0].fadeAway(now);
+    if (status) status.textContent = 'A seed is planted';
   }
 
-  // How much one line takes a wave's colour right now (0–1).
-  function waveOnLine(wave, line, now) {
-    const p = (now - wave.start) / WAVE.life;
-    if (p <= 0 || p >= 1) return 0;
-    const front = easeInOutSine(p) * WAVE.reach * width;          // px from the click
-    const distance = line.horizontal
-      ? Math.abs(line.position * height - wave.y)
-      : Math.abs(line.position * width - wave.x);
-    const band = WAVE.band * width;
-    const lit = Math.exp(-((distance - front) ** 2) / (2 * band * band));   // bright at the front
-    return lit * (1 - p) * WAVE.tint;                              // and fading with time
+  // Moves every plant on and forgets the ones that have faded away.
+  function updatePlants(now) {
+    for (const plant of plants) plant.update(now);
+    plants = plants.filter((p) => !p.removed);
   }
 
+  // Draws every planted plant, each one in one piece. Called right after the
+  // background net, so planted plants sit in front of the net and behind
+  // the team's original plants.
+  function drawPlantsBehind(t, now) {
+    if (!plants.length) return;
+    const wind = typeof windStrength === 'function' ? windStrength(t) : 0;
+    drawingPlants = true;
+    try {
+      for (const plant of plants) plant.draw(t, now, wind);
+      drawHeads(now, true);                                 // falling heads of planted flowers
+    } finally {
+      drawingPlants = false;
+    }
+  }
+
+  // ------------------------------------------------- pressing the net
+  // An empty-space click presses into the background net at that point.
+  function pressNet(x, y) {
+    dents.push({ x, y, start: performance.now() });
+    if (dents.length > 3) dents.shift();
+  }
+
+  // How far a net point at (x, y) is pushed away from all running presses.
+  function dentOffset(x, y, now) {
+    let ox = 0;
+    let oy = 0;
+    for (const dent of dents) {
+      const t = (now - dent.start) / 1000;
+      const dx = x - dent.x;
+      const dy = y - dent.y;
+      const d = Math.hypot(dx, dy);
+      if (d < 0.5) continue;
+      const R = NET.radius * width;
+      const push = NET.depth * width * Math.exp(-(d * d) / (R * R)) *
+        Math.exp(-t / NET.decay) * Math.sin(2 * Math.PI * NET.freq * t) * strength();
+      ox += dx / d * push;
+      oy += dy / d * push;
+    }
+    return [ox, oy];
+  }
+
+  // perlin-layer.js draws each net line from many vertex() points. While the
+  // net is drawn, vertex() is swapped for a version that moves each point by
+  // dentOffset(), then the real vertex() is put back. After the net, the
+  // planted plants are drawn, so they sit in front of it.
+  // While the net is drawn, three p5 functions are swapped for versions
+  // that add my changes, then the real ones are put back:
+  //   vertex()     — moves each net point by dentOffset() (a pressed dent)
+  //   background() — paints the backdrop's colour (and its spreading circle)
+  //   stroke()     — gives each net line its colour in the current scheme
+  // After the net, the planted plants are drawn, so they sit in front of it.
   function wrapBackground() {
     if (typeof PerlinBackground === 'undefined') return;
     const teamDraw = PerlinBackground.prototype.draw;
-    PerlinBackground.prototype.draw = function (...args) {
+    PerlinBackground.prototype.draw = function (t, ...rest) {
       const now = performance.now();
-      colourWaves = colourWaves.filter((w) => now - w.start < WAVE.life);
-      if (!colourWaves.length || !Array.isArray(this.lines)) return teamDraw.apply(this, args);
-
-      // tint (and thicken) each line for this drawing only
-      const homes = this.lines.map((line) => ({ colour: line.colour, weight: line.weight }));
-      for (const line of this.lines) {
-        let colour = line.colour;
-        let glow = 0;
-        for (const wave of colourWaves) {
-          const k = waveOnLine(wave, line, now);
-          if (k > 0.002) colour = colour.map((c, i) => c + (wave.rgb[i] - c) * k);
-          glow = Math.max(glow, k);
-        }
-        line.colour = colour;
-        line.weight = line.weight * (1 + WAVE.thicken * glow);
+      dents = dents.filter((dent) => now - dent.start < NET.life);
+      const swaps = [];
+      if (dents.length && typeof window.vertex === 'function') {
+        const teamVertex = window.vertex;
+        swaps.push(['vertex', teamVertex]);
+        window.vertex = function (x, y, ...more) {
+          const o = dentOffset(x, y, now);
+          return teamVertex.call(this, x + o[0], y + o[1], ...more);
+        };
       }
+      if (backdrop.changed(now) && typeof window.background === 'function' && typeof window.stroke === 'function') {
+        const teamBackground = window.background;
+        const teamStroke = window.stroke;
+        swaps.push(['background', teamBackground], ['stroke', teamStroke]);
+        window.background = function () {
+          return backdrop.drawBackground((r, g, b) => teamBackground.call(this, r, g, b), now);
+        };
+        const blues = typeof NET_BLUES !== 'undefined' ? NET_BLUES : [];
+        window.stroke = function (r, g, b, ...more) {
+          const i = blues.findIndex((c) => c[0] === r && c[1] === g && c[2] === b);
+          if (i < 0) return teamStroke.call(this, r, g, b, ...more);
+          const c = backdrop.netColour(i, now);
+          return teamStroke.call(this, c[0], c[1], c[2], ...more);
+        };
+      }
+      let result;
       try {
-        return teamDraw.apply(this, args);
+        result = teamDraw.call(this, t, ...rest);
       } finally {
-        this.lines.forEach((line, i) => {                               // the net is unchanged
-          line.colour = homes[i].colour;
-          line.weight = homes[i].weight;
-        });
+        for (const [name, original] of swaps) window[name] = original;
       }
+      drawPlantsBehind(typeof t === 'number' ? t : 0, now);
+      return result;
     };
   }
 
@@ -575,9 +1545,8 @@
     return best || [235, 230, 220];
   }
 
-  // ------------------------------------------------------------- click → effect
-  // Loose dots start ON the petal edge and only move outwards, so they never
-  // cover the flower. Their colours come from the flower's own outer dots.
+  // ------------------------------------------------------- touching a flower
+  // Colours of the outer (petal) dots of a flower, used for the cursor.
   function edgeColours(flower) {
     const colours = [];
     if (Array.isArray(flower.dots)) {
@@ -595,191 +1564,191 @@
     return colours.length ? colours : [[235, 230, 220]];
   }
 
-  // Each loose dot starts at a point on the petal edge (0.96–1.04 × the edge,
-  // so they do not sit in a perfect line) with its own size, colour, random
-  // seed and start delay. The seed makes every dot move a little differently.
-  function makeLooseDots(flower, type, clickAngle, windX, windY) {
-    const colours = edgeColours(flower);
-    const dots = [];
-    for (let i = 0; i < LOOSE_DOTS; i++) {
-      let a;
-      if (type === 'breeze') {
-        // the far edge (opposite the click) lets go, so the dots blow away
-        // from the flower instead of across it
-        a = clickAngle + Math.PI + (Math.random() - 0.5) * 2.0;
-      } else {
-        a = Math.random() * Math.PI * 2;
-      }
-      const r = edgeOf(flower, a) * (0.96 + Math.random() * 0.08);
-      dots.push({
-        x: Math.cos(a) * r,
-        y: Math.sin(a) * r,
-        angle: a,
-        size: 0.03 + Math.random() * 0.03,
-        rgb: colours[Math.floor(Math.random() * colours.length)],
-        seed: Math.random(),
-        delay: Math.random() * 0.18          // they let go one after another
-      });
-    }
-    return dots;
+  // The flower's current FlowerWilt (time mechanic), if it has one.
+  function activeWilt(flower) {
+    const plant = plantOf.get(flower);
+    if (plant) return plant.wilt && !plant.wilt.gone ? plant.wilt : null;
+    if (typeof wilts === 'undefined') return null;
+    return wilts.find((w) => w.flower === flower && !w.gone) || null;
   }
 
-  // The panel's choice, or a random effect that is not the same as the last
-  // one (so "Random" always feels varied).
-  function pickEffect() {
-    let index = EFFECTS.indexOf(selection);
-    if (index < 0) {
-      index = Math.floor(Math.random() * EFFECTS.length);
-      if (index === lastEffect) index = (index + 1 + Math.floor(Math.random() * 2)) % EFFECTS.length;
-    }
-    lastEffect = index;
-    return EFFECTS[index];
-  }
-
-  // Starts an effect on a flower. Clicks closer than 150 ms are ignored, so a
-  // double click does not start two effects on top of each other.
-  // clickX / clickY are the click position in flower units (1 = radius);
-  // a click near the centre counts as coming from the left (angle π).
-  function trigger(flower, nx, ny) {
+  // A click on a flower. Clicks on the same flower less than TOUCH.window
+  // apart are counted: the 1st to 3rd give it new colours (with a bounce
+  // and a small ring of dots), the 4th makes the whole flower head fall.
+  // Clicks closer than 150 ms are ignored, so a double click counts once.
+  function touchFlower(flower, nx = flower.nx, ny = flower.ny) {
     const now = performance.now();
     if (now - lastClickAt < 150) return false;
     lastClickAt = now;
 
-    const type = pickEffect();
-    const clickX = (nx - flower.nx) / flower.nr;
-    const clickY = (ny - flower.ny) * height / (flower.nr * width);
-    const clickAngle = Math.hypot(clickX, clickY) > 0.2 ? Math.atan2(clickY, clickX) : Math.PI;
+    const last = touches.get(flower);
+    const count = last && now - last.at < TOUCH.window ? last.count + 1 : 1;
+    touches.set(flower, { count, at: now });
 
-    // The breeze blows away from the click point (a click in the middle
-    // blows to the right, like the team's default wind), a little upwards.
-    let windX = -Math.cos(clickAngle);
-    let windY = -Math.sin(clickAngle) * 0.4 - 0.2;
-    const wl = Math.hypot(windX, windY);
-    windX /= wl;
-    windY /= wl;
+    if (count >= TOUCH.toDrop && dropHead(flower)) {
+      touches.delete(flower);
+      if (status) status.textContent = 'The flower falls';
+      return true;
+    }
 
+    // where the click was, in flower units (the new colour spreads from there)
+    const from = [(nx - flower.nx) / flower.nr, (ny - flower.ny) * height / (flower.nr * width)];
+    const rgb = recolourFlower(flower, from) || petalColour(flower);
     bounceFlower(flower);
-
-    const dots = type === 'ripple' ? [] : makeLooseDots(flower, type, clickAngle, windX, windY);
-    active = active.filter((p) => now - p.start < LIFETIME);
-    // each ripple spreads a little differently (0.5–0.7 × the radius beyond
-    // the petals), so repeated ripples are not all the same
-    const reach = 0.5 + Math.random() * 0.2;
-    active.push({ flower, type, start: now, dots, windX, windY, reach });
-    if (active.length > 4) active.shift();
-
-    if (status) status.textContent = LABELS[type];
+    ripples.push(new Ripple(flower, rgb));
+    sounds.colourChange(count);
+    if (ripples.length > 4) ripples.shift();
+    if (status) {
+      status.textContent = 'New colours (' + count + '/' + TOUCH.toDrop + ')' +
+        (count === TOUCH.toDrop - 1 ? ' · once more and it falls' : '');
+    }
     return true;
   }
 
-  // ------------------------------------------------------- the edge effects
-  // Position of a loose dot after t seconds (flower units, 1 = flower radius).
-  //   Breeze: travel along the wind direction with a smooth start
-  //           (easeInOutSine over 2.2 s), plus a sideways sway from noise()
-  //           that grows in over the first 0.6 s.
-  //   Pollen: a short hop outwards that slows down (1 − e^(−4t)), then a fall
-  //           that speeds up like gravity (∝ t²), with a sine flutter.
-  // k is the click strength; s (the dot's seed) makes each path different.
-  function looseDotAt(pulse, d, t, k) {
-    const s = d.seed;
-    let x = d.x;
-    let y = d.y;
+  // New colours for a flower. A different colour scheme from the team's
+  // FLOWER_SCHEMES is chosen and each pen gets a colour from it, like
+  // pickFlowerColours() in perlin-layer.js does. The dots already drawn
+  // (and the time mechanic's wilting copies of them) swap each old colour
+  // for its new one, separately for the petals and the centre, so the
+  // flower keeps its pattern of rings and only its colours change. The new
+  // colours stay when the flower regrows, because the pens keep them.
+  // The team's colour arrays are never changed: only references are swapped.
+  function recolourFlower(flower, from = [0, 0]) {
+    if (typeof PALETTE === 'undefined' || typeof FLOWER_SCHEMES === 'undefined' || !Array.isArray(flower.pens)) return null;
+    applyRecolours(Infinity, flower);       // finish any colour change still spreading
+    const current = flower.colours && flower.colours.scheme;
+    const choices = FLOWER_SCHEMES.filter((s) => s !== current);
+    const scheme = choices[Math.floor(Math.random() * choices.length)] || FLOWER_SCHEMES[0];
+    const pick = (names) => names[Math.floor(Math.random() * names.length)];
+    const petalNames = [scheme.petalBase, ...scheme.petalDots];
+    const coreNames = [scheme.coreBase, ...scheme.coreDots];
+    const colours = {
+      scheme,
+      petal: [0, 1, 2, 3, 4].map(() => pick(petalNames)),
+      core: [0, 1, 2, 3, 4, 5, 6].map(() => pick(coreNames))
+    };
 
-    if (pulse.type === 'breeze') {
-      // carried along the wind; Perlin noise makes each path wander
-      const travel = k * (0.5 + 0.9 * s) * easeInOutSine(clamp01(t / 2.2));
-      const sway = (noise(s * 40, t * 0.7) - 0.5) * 0.5 * k * clamp01(t / 0.6);
-      x += pulse.windX * travel - pulse.windY * sway;
-      y += pulse.windY * travel + pulse.windX * sway;
+    // old colour → new colour, separately for petal pens (first 5) and centre pens
+    const swap = new Map();
+    flower.pens.forEach((pen, i) => {
+      const petal = i < 5;
+      const next = PALETTE[petal ? colours.petal[i] : colours.core[i - 5]];
+      if (!next || !Array.isArray(pen.rgb)) return;
+      const key = (petal ? 'p' : 'c') + pen.rgb.join(',');
+      if (!swap.has(key)) swap.set(key, next);
+      pen.rgb = next;
+    });
+    const recolour = (rgb, x, y) => {
+      const petal = Math.hypot(x, y) > (flower.coreRatio || 0.5) * 1.02;
+      const key = rgb.join(',');
+      return swap.get((petal ? 'p' : 'c') + key) || swap.get((petal ? 'c' : 'p') + key) || rgb;
+    };
+
+    for (const d of flower.dots || []) {
+      if (Array.isArray(d.rgb)) d.rgb = recolour(d.rgb, d.x, d.y);
     }
-
-    else if (pulse.type === 'pollen') {
-      // a small hop outwards, then a slow fall with a sideways flutter
-      const hop = k * (0.12 + 0.18 * s) * (1 - Math.exp(-t * 4));
-      const fall = 0.12 * t * t * (0.6 + 0.6 * s);
-      const flutter = Math.sin(t * (2 + 2 * s) + s * 6.3) * 0.06 * clamp01(t);
-      x += Math.cos(d.angle) * hop + flutter;
-      y += Math.sin(d.angle) * hop + fall;
+    const wilt = activeWilt(flower);
+    // the dots on screen change one after another, sooner the closer they
+    // are to the click, so the new colour visibly spreads across the flower
+    if (wilt && Array.isArray(wilt.dots)) {
+      const now = performance.now();
+      for (const w of wilt.dots) {
+        const next = recolour(w.rgb, w.x, w.y);
+        if (next === w.rgb) continue;
+        const wiltRgb = typeof mixRgb === 'function' && typeof WILT_COLOURS !== 'undefined'
+          ? mixRgb(next, WILT_COLOURS[Math.floor(Math.random() * WILT_COLOURS.length)], 0.85) : next;
+        const distance = Math.hypot(w.x - from[0], w.y - from[1]);
+        recolours.push({ flower, dot: w, rgb: next, wiltRgb, at: now + TOUCH.sweep * Math.min(1, distance / 1.6) });
+      }
     }
+    flower.colours = colours;
 
-    return [x, y];
-  }
-
-  // Draws every running effect. Dots are placed relative to the flower's
-  // centre (cx, cy) and radius R, so they stay right after a window resize.
-  function drawEffects(now) {
-    const k = strength();
-
-    for (const pulse of active) {
-      const p = (now - pulse.start) / LIFETIME;
-      const flower = pulse.flower;
+    // A flower that is still drawing itself keeps its dots on an off-screen
+    // layer. Clear that same layer and redraw its dots in the new colours
+    // (the same drawing as the team's resetLayer(), but without making a new
+    // canvas-sized layer, which would cause a stutter on every click).
+    if (!flower.finished && flower.layer) {
+      const layer = flower.layer;
       const cx = flower.nx * width;
       const cy = flower.ny * height;
       const R = flower.nr * width;
-
-      if (pulse.type === 'ripple') {
-        drawRipple(flower, p, cx, cy, R, pulse.reach);
-        continue;
-      }
-
-      for (const d of pulse.dots) {
-        const t = Math.max(0, (p - d.delay) * LIFETIME / 1000);
-        if (t <= 0) continue;
-        const [x, y] = looseDotAt(pulse, d, t, k);
-        // fade in quickly, fade out over the last 40 % (crisp dots, no blur)
-        const life = clamp01((p - d.delay) / (1 - d.delay));
-        const alpha = 255 * clamp01(life / 0.08) * clamp01((1 - life) / 0.4);
-        fill(d.rgb[0], d.rgb[1], d.rgb[2], alpha);
-        circle(cx + x * R, cy + y * R, Math.max(1.5, d.size * R * DOT_SCALE * 1.6));
+      layer.clear();
+      layer.noStroke();
+      for (const d of flower.dots) {
+        layer.fill(d.rgb[0], d.rgb[1], d.rgb[2]);
+        layer.circle(cx + d.x * R, cy + d.y * R, d.size * R);
       }
     }
+    return PALETTE[colours.petal[0]] || null;
   }
 
-  // Rings of small dots spread out from the flower's edge (never over it).
-  // Three rings start one after another (0.16 apart in progress), each grows
-  // from 1.06 × the petal outline by "reach" (random per click) and fades.
-  function drawRipple(flower, p, cx, cy, R, reach = 0.6) {
-    const dot = Math.max(1.5, R * 0.024);
-    for (let i = 0; i < 3; i++) {
-      const q = clamp01((p - i * 0.16) / 0.75);
-      if (q <= 0 || q >= 1) continue;
-      const grow = 1.06 + reach * easeInOutSine(q);     // starts just outside the petals
-      fill(240, 244, 255, 235 * (1 - q) * (1 - i * 0.25));
-      // enough dots that they read as a ring (about 2.6 dot-widths apart)
-      const count = Math.max(24, Math.floor((Math.PI * 2 * grow * R) / (dot * 2.6)));
-      for (let j = 0; j < count; j++) {
-        const a = (j / count) * Math.PI * 2 + i * 0.25;
-        const r = edgeOf(flower, a) * grow * R;            // the ring follows the petal shape
-        circle(cx + Math.cos(a) * r, cy + Math.sin(a) * r, dot);
-      }
+  // Gives each waiting dot its new colour once its time has come (or all of
+  // one flower's dots at once, when `only` is given and now is Infinity).
+  function applyRecolours(now, only = null) {
+    if (!recolours.length) return;
+    recolours = recolours.filter((r) => {
+      if ((only && r.flower !== only) || r.at > now) return true;
+      r.dot.rgb = r.rgb;
+      r.dot.wiltRgb = r.wiltRgb;
+      return false;
+    });
+  }
+
+  // The dots of the flower head as they look right now (flower units).
+  function headDots(flower) {
+    applyRecolours(Infinity, flower);
+    const wilt = activeWilt(flower);
+    if (flower.finished && wilt && wilt.phase === 'wilt' && Array.isArray(wilt.dots)) {
+      const wiltTime = Math.max(0, wilt.timer.seconds() - (typeof MATURE_SECONDS === 'number' ? MATURE_SECONDS : 0));
+      return wilt.dots.filter((d) => d.state === 'attached').map((d) => ({
+        x: d.x, y: d.y + d.droop(wiltTime), size: d.size, rgb: d.colourAt(wiltTime)
+      }));
     }
+    return (flower.dots || []).map((d) => ({ x: d.x, y: d.y, size: d.size, rgb: rgbOfDot(d) }));
   }
 
-  // A ring of small dots slowly circles the flower that can be clicked
-  // (mouse hover or keyboard).
-  // (The dot cursor shows leaves and stems; see drawCursor.)
-  // The keyboard choice wins over the mouse. The ring's size comes from
-  // ringScale(); it turns slowly and a brightness wave runs round it.
-  // Current ring size: the spring moves "angle" towards "goal".
-  function ringScale(now) {
-    const offset = { angle: ring.angle - ring.goal, speed: ring.speed, last: ring.last || now };
-    stepSpring(offset, RING.spring, now);
-    ring.angle = ring.goal + offset.angle;
-    ring.speed = offset.speed;
-    ring.last = offset.last;
-    return ring.angle * (1 + RING.breathe * Math.sin(now / 900));
+  // The flower head lets go of its stem: its dots are copied into a
+  // FallingHead and the real flower is hidden until it regrows.
+  function dropHead(flower) {
+    const dots = headDots(flower);
+    if (!dots.length) return false;
+    headless.add(flower);
+    flowerBounce.delete(flower);
+    heads.push(new FallingHead(flower, dots));
+    sounds.flowerFall(flower);
+    return true;
   }
 
-  // A new random ring size, at least 0.1 away from the current one, so every
-  // click visibly makes it bigger or smaller.
-  function jumpRing() {
-    let next;
-    do {
-      next = RING.min + Math.random() * (RING.max - RING.min);
-    } while (Math.abs(next - ring.goal) < 0.1);
-    ring.goal = next;
+  function updateHeads(now) {
+    for (const head of heads) head.update(now);
+    heads = heads.filter((head) => !head.done);
   }
 
+  // The flower starts again: its old life cycle is ended (the stem turns
+  // green again) and the team's redrawFlower() makes it draw itself anew.
+  function regrowFlower(flower) {
+    headless.delete(flower);
+    const wilt = activeWilt(flower);
+    if (wilt) {
+      wilt.gone = true;
+      if (wilt.stemWilt) wilt.stemWilt.restore();
+    }
+    if (typeof redrawFlower === 'function') redrawFlower(flower);   // its resetLayer() frees the old layer
+  }
+
+  // Falling heads: the ones of planted flowers are drawn with the planted
+  // plants (behind = true), the others on top of the garden.
+  function drawHeads(now, behind) {
+    for (const head of heads) if (head.behind === behind) head.draw(now);
+  }
+
+  function drawRipples(now) {
+    ripples = ripples.filter((r) => !r.finished(now));
+    for (const ripple of ripples) ripple.draw(now);
+  }
+
+  // The dotted ring goes round the flower chosen with the keyboard, or else
+  // the one under the mouse.
   function drawHover(now) {
     let flower = null;
     const mouseIn = typeof mouseX === 'number' && mouseX >= 0 && mouseX <= width && mouseY >= 0 && mouseY <= height;
@@ -788,68 +1757,7 @@
     } else if (mouseIn) {
       flower = flowerAt(mouseX / width, mouseY / height);
     }
-
-    if (!flower) return;
-
-    const R = flower.nr * width;
-    const cx = flower.nx * width + flowerShift(flower);
-    const cy = flower.ny * height;
-    const ringR = R * ringScale(now);
-    const count = Math.round(30 * ring.angle);        // more dots on a bigger ring
-    const turn = now / 6000;                          // one turn every ~38 s
-    const dot = Math.max(2, R * 0.034);
-    for (let i = 0; i < count; i++) {
-      const a = (i / count) * Math.PI * 2 + turn;
-      const glint = 0.7 + 0.3 * Math.sin(a * 3 - now / 500);     // a slow shimmer runs round the ring
-      fill(255, 255, 255, 230 * glint);
-      circle(cx + Math.cos(a) * ringR, cy + Math.sin(a) * ringR, dot);
-    }
-  }
-
-  // The dot cursor. Each trail dot moves a fixed fraction of the way towards
-  // the dot in front of it every frame, so the trail lags behind and curls
-  // when the mouse turns. Over something clickable the dot grows and takes
-  // that thing's colour; a click squeezes it on a quick spring.
-  function drawCursor(now, target) {
-    // hidden when the pointer has left the canvas (p5 keeps the last mouseX)
-    // or while the keyboard is being used
-    if (!cursor.inside || keyboardIndex >= 0) {
-      cursor.trail = [];
-      return;
-    }
-
-    // trail: the first point is the mouse, the rest chase the one in front
-    if (!cursor.trail.length) {
-      for (let i = 0; i <= CURSOR.trail; i++) cursor.trail.push({ x: mouseX, y: mouseY });
-    }
-    cursor.trail[0].x = mouseX;
-    cursor.trail[0].y = mouseY;
-    for (let i = 1; i < cursor.trail.length; i++) {
-      const a = cursor.trail[i];
-      const b = cursor.trail[i - 1];
-      a.x += (b.x - a.x) * CURSOR.follow;
-      a.y += (b.y - a.y) * CURSOR.follow;
-    }
-
-    // size and colour ease towards what is under the mouse
-    const goal = (target ? CURSOR.hoverSize : CURSOR.size) * width;
-    cursor.size += (goal - cursor.size) * 0.2;
-    const goalRgb = target ? target.rgb : [245, 242, 235];
-    cursor.rgb = cursor.rgb.map((c, i) => c + (goalRgb[i] - c) * 0.15);
-
-    stepSpring(cursor.press, CURSOR.press, now);
-    const squeeze = Math.max(0.4, 1 + cursor.press.angle);
-
-    // trail dots: smaller and fainter towards the end
-    for (let i = cursor.trail.length - 1; i >= 1; i--) {
-      const k = 1 - i / (cursor.trail.length + 1);
-      fill(cursor.rgb[0], cursor.rgb[1], cursor.rgb[2], 200 * k);
-      circle(cursor.trail[i].x, cursor.trail[i].y, cursor.size * 0.55 * k);
-    }
-
-    // the dot itself: a plain solid dot, no outline
-    fill(cursor.rgb[0], cursor.rgb[1], cursor.rgb[2]);
-    circle(mouseX, mouseY, cursor.size * squeeze);
+    if (flower) ring.draw(now, flower);
   }
 
   // What is under the mouse and its colour (for the cursor).
@@ -869,13 +1777,12 @@
   function display() {
     if (typeof push !== 'function' || typeof width !== 'number') return;
     const now = performance.now();
-    active = active.filter((p) => now - p.start < LIFETIME);
-
     push();
     noStroke();
     drawHover(now);
-    drawEffects(now);
-    drawCursor(now, cursorTarget());
+    drawRipples(now);
+    drawHeads(now, false);
+    cursor.draw(now, cursorTarget(), keyboardIndex >= 0);
     pop();
   }
 
@@ -886,10 +1793,10 @@
   function makeControls() {
     const panel = document.createElement('div');
     panel.style.cssText = `
-      position:fixed; z-index:30; left:14px; bottom:14px;
+      position:fixed; z-index:30; left:14px; top:14px;   /* top left: the music panel sits at the bottom */
       background:rgba(8,12,27,.92); color:#e8eaf2;
       padding:12px 14px; border:1px solid #3b4f72; border-radius:12px;
-      font:12px/1.5 system-ui,sans-serif; width:220px;
+      font:12px/1.5 system-ui,sans-serif; width:250px;
       box-shadow:0 8px 30px #0008;
     `;
 
@@ -898,18 +1805,23 @@
     title.style.cssText = 'letter-spacing:.11em;font-weight:700;margin-bottom:8px;color:#d8e0f5';
     panel.append(title);
 
-    const select = document.createElement('select');
-    select.setAttribute('aria-label', 'Choose flower click effect');
-    select.style.cssText = `width:100%;padding:7px;border:1px solid #526180;border-radius:6px;background:#121b30;color:white;`;
-    const options = [['random', 'Random · three effects'], ...EFFECTS.map((e, i) => [e, '0' + (i + 1) + ' ' + LABELS[e]])];
-    for (const [value, label] of options) {
-      const option = document.createElement('option');
-      option.value = value;
-      option.textContent = label;
-      select.append(option);
+    // what each kind of click does, so the viewer knows what to try
+    const help = document.createElement('div');
+    help.style.cssText = 'display:grid;grid-template-columns:auto 1fr;gap:3px 8px;color:#c9d3ea';
+    for (const [where, what] of [
+      ['Empty space', 'plant a flower · new background colour'],
+      ['Flower', 'new colours · 4th click: it falls and regrows'],
+      ['Leaf', 'it falls, then grows back'],
+      ['Stem', 'the plant sways']
+    ]) {
+      const a = document.createElement('span');
+      a.textContent = where;
+      a.style.cssText = 'color:#f3f5ff;font-weight:600';
+      const b = document.createElement('span');
+      b.textContent = what;
+      help.append(a, b);
     }
-    select.addEventListener('change', () => { selection = select.value; });
-    panel.append(select);
+    panel.append(help);
 
     const row = document.createElement('div');
     row.style.cssText = 'margin-top:10px;display:flex;justify-content:space-between';
@@ -934,9 +1846,22 @@
     });
     panel.append(slider);
 
+    // the colour chime and the falling sounds can be switched off
+    const soundRow = document.createElement('label');
+    soundRow.style.cssText = 'margin-top:6px;display:flex;align-items:center;gap:6px;cursor:pointer';
+    const soundBox = document.createElement('input');
+    soundBox.type = 'checkbox';
+    soundBox.checked = sounds.enabled;
+    soundBox.style.accentColor = '#95b9df';
+    soundBox.addEventListener('change', () => { sounds.enabled = soundBox.checked; });
+    const soundLabel = document.createElement('span');
+    soundLabel.textContent = 'Sounds (colour · flower · leaf)';
+    soundRow.append(soundBox, soundLabel);
+    panel.append(soundRow);
+
     status = document.createElement('div');
     status.setAttribute('aria-live', 'polite');
-    status.textContent = 'Click a flower, a leaf or a stem';
+    status.textContent = 'Click empty space to plant a flower';
     status.style.cssText = 'margin-top:8px;color:#aebdd5';
     panel.append(status);
 
@@ -954,7 +1879,6 @@
   }
 
   wrapFlowerDrawing();
-  wrapWind();
   wrapLeaves();
   wrapStems();
   wrapBackground();
@@ -967,16 +1891,16 @@
       canvas.setAttribute('tabindex', '0');
       canvas.style.cursor = 'none';             // the dot cursor replaces the arrow
       canvas.setAttribute('aria-label',
-        'Interactive flower garden. Click a flower to make it bounce and shed a few dots, a leaf to make it swing, or a stem to make the plant sway. Arrow keys and Enter choose and trigger flowers.');
+        'Interactive flower garden. Click empty space to plant a flower and change the background colour, a leaf to make it fall, a flower to change its colours (three clicks make it fall), or a stem to make the plant sway. Arrow keys and Enter choose and trigger flowers.');
 
       // One pointer handler covers mouse, pen and touch. Only the left button
       // / first finger counts. Flowers are checked first, then leaves, then
-      // stems, because a flower head sits on top of its stem and leaves.
+      // stems, because a flower head sits on top of its stem and leaves;
+      // anywhere else plants a new flower.
       canvas.addEventListener('pointerdown', (event) => {
         if (event.button !== 0 || !event.isPrimary) return;
         keyboardIndex = -1;
-        cursor.press.last = performance.now();
-        cursor.press.speed += CURSOR.press.kick;       // squeeze the dot cursor
+        cursor.squeeze();                               // squeeze the dot cursor
         const rect = canvas.getBoundingClientRect();
         const nx = (event.clientX - rect.left) / rect.width;
         const ny = (event.clientY - rect.top) / rect.height;
@@ -984,28 +1908,25 @@
         const py = ny * height;
         const flower = flowerAt(nx, ny);
         if (flower) {
-          if (trigger(flower, nx, ny)) {
-            startColourWave(px, py, petalColour(flower));
-            jumpRing();
-          }
+          if (touchFlower(flower, nx, ny)) ring.jump();
           return;
         }
         const onLeaf = leafAt(px, py);
         if (onLeaf) {
-          kickLeaf(onLeaf.leaf, onLeaf.hit);
-          startColourWave(px, py, (onLeaf.leaf.colours && onLeaf.leaf.colours.light) || LEAF_TINT);
+          dropLeaf(onLeaf.leaf);
           return;
         }
         const onStem = stemAt(px, py);
-        if (onStem) {
-          pushStem(onStem.stem, onStem.f, px);
-          startColourWave(px, py, (onStem.stem.colours && onStem.stem.colours.mid) || LEAF_TINT);
+        if (onStem) pushStem(onStem.stem, onStem.f, px);
+        else {                                               // empty space:
+          pressNet(px, py);                                  // the net gives way under the click
+          backdrop.next(px, py, performance.now());          // the next background colour spreads out
+          plantFlower(nx, ny);                               // and a flower is planted there
         }
-        else if (status) status.textContent = 'Click a flower, a leaf or a stem';
       });
 
       // Keyboard access: arrow keys move between flowers (shown by the dot
-      // ring), Enter or Space triggers the chosen flower.
+      // ring), Enter or Space clicks the chosen flower.
       canvas.addEventListener('keydown', (event) => {
         const list = flowers();
         if (!list.length) return;
@@ -1019,10 +1940,7 @@
           event.preventDefault();
           if (keyboardIndex < 0) keyboardIndex = 0;
           const f = list[keyboardIndex];
-          if (trigger(f, f.nx, f.ny)) {
-            startColourWave(f.nx * width, f.ny * height, petalColour(f));
-            jumpRing();
-          }
+          if (touchFlower(f)) ring.jump();
         }
       });
       canvas.addEventListener('blur', () => { keyboardIndex = -1; });
@@ -1041,7 +1959,30 @@
     return result;
   };
 
+  // Safety check before each frame. If the page is first shown at zero size
+  // (for example inside a hidden or collapsed preview panel), the self-drawing
+  // flowers create zero-size drawing layers, and drawing one of them throws
+  // an error that stops p5's draw loop for good. So: skip frames while the
+  // canvas has no size, and rebuild any layer whose size no longer matches
+  // the canvas (resetLayer() is the team's own method and redraws its dots).
+  function canvasReady() {
+    if (!(width >= 1 && height >= 1)) return false;
+    const all = plants.filter((p) => p.phase === 'live').map((p) => p.flower);
+    if (typeof animatedFlowers !== 'undefined') all.push(...animatedFlowers);
+    {
+      for (const f of all) {
+        const layer = f.layer;
+        if (layer && layer.width !== undefined && (layer.width !== width || layer.height !== height)) f.resetLayer();
+      }
+    }
+    return true;
+  }
+
   window.draw = function (...args) {
+    if (!canvasReady()) return;
+    updatePlants(performance.now());          // grow planted stems before the garden is drawn
+    updateHeads(performance.now());           // move falling flower heads
+    applyRecolours(performance.now());        // spread new colours across flowers
     const result = originalDraw.apply(this, args);
     display();
     return result;
