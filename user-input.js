@@ -244,6 +244,19 @@
   const easeOutCubic = (v) => 1 - Math.pow(1 - v, 3);   // fast start, soft landing
   const midiHz = (n) => 440 * Math.pow(2, (n - 69) / 12);   // MIDI note number → frequency (A4 = 69 = 440 Hz)
 
+  // Efficiency: some answers are needed several times in one frame (the
+  // list of flowers, the flower under the mouse). perFrame() works each one
+  // out once per frame and reuses it until the next frame starts.
+  let frame = 0;                          // counted up at the start of every draw()
+  const frameCache = new Map();           // key → { frame, value }
+  function perFrame(key, compute) {
+    const hit = frameCache.get(key);
+    if (hit && hit.frame === frame) return hit.value;
+    const value = compute();
+    frameCache.set(key, { frame, value });
+    return value;
+  }
+
   // Draw something with a lower canvas opacity, then put it back.
   function withAlpha(alpha, draw) {
     if (alpha >= 0.999 || typeof drawingContext === 'undefined') return draw();
@@ -1071,6 +1084,10 @@
   // flowers planted by clicks.
   // typeof checks keep this file working even if a teammate renames a list.
   function flowers() {
+    return perFrame('flowers', listFlowers);
+  }
+
+  function listFlowers() {
     const list = [];
     if (typeof animatedFlowers !== 'undefined') list.push(...animatedFlowers);
     if (typeof noisyFlowers !== 'undefined') list.push(...noisyFlowers);
@@ -1138,7 +1155,10 @@
       const spring = flower && flowerBounce.get(flower);
       const shift = flower ? flowerShift(flower) : 0;      // carried by a swaying stem
       const alpha = flower ? plantAlpha(flower, performance.now()) : 1;
-      if (!spring && !shift) return withAlpha(alpha, () => original.apply(this, args));
+      if (!spring && !shift) {
+        if (alpha >= 0.999) return original.apply(this, args);   // the usual case: no extra work
+        return withAlpha(alpha, () => original.apply(this, args));
+      }
 
       let grow = 1;
       if (spring) {
@@ -1368,7 +1388,10 @@
     Stem.prototype.draw = function (...args) {
       const alpha = plantAlpha(this, performance.now());
       const spring = stemSway.get(this);
-      if (!spring) return withAlpha(alpha, () => teamDraw.apply(this, args));
+      if (!spring) {
+        if (alpha >= 0.999) return teamDraw.apply(this, args);   // the usual case: no extra work
+        return withAlpha(alpha, () => teamDraw.apply(this, args));
+      }
       if (spring.step(performance.now())) stemSway.delete(this);
       const homeX = this.topX;
       this.topX = homeX + spring.value;          // lean for this drawing only
@@ -1496,7 +1519,7 @@
     const teamDraw = PerlinBackground.prototype.draw;
     PerlinBackground.prototype.draw = function (t, ...rest) {
       const now = performance.now();
-      dents = dents.filter((dent) => now - dent.start < NET.life);
+      if (dents.length) dents = dents.filter((dent) => now - dent.start < NET.life);
       const swaps = [];
       if (dents.length && typeof window.vertex === 'function') {
         const teamVertex = window.vertex;
@@ -1533,16 +1556,27 @@
   }
 
   // The main petal colour of a flower: its most common outer-dot colour.
+  // The cursor needs it every frame while it is over a flower, but counting
+  // ~2000 dots each frame is wasteful, so the answer is kept for a short
+  // while (PETAL_CACHE_MS, or until the flower's colours change).
+  const PETAL_CACHE_MS = 400;
+  const petalCache = new Map();           // flower → { rgb, at }
   function petalColour(flower) {
+    const now = performance.now();
+    const hit = petalCache.get(flower);
+    if (hit && now - hit.at < PETAL_CACHE_MS) return hit.rgb;
     const counts = new Map();
     let best = null;
+    let bestCount = 0;
     for (const rgb of edgeColours(flower)) {
       const key = rgb.join(',');
       const n = (counts.get(key) || 0) + 1;
       counts.set(key, n);
-      if (!best || n > counts.get(best.join(','))) best = rgb;
+      if (n > bestCount) { best = rgb; bestCount = n; }
     }
-    return best || [235, 230, 220];
+    const rgb = best || [235, 230, 220];
+    petalCache.set(flower, { rgb, at: now });
+    return rgb;
   }
 
   // ------------------------------------------------------- touching a flower
@@ -1662,6 +1696,7 @@
       }
     }
     flower.colours = colours;
+    petalCache.delete(flower);              // the cursor takes the new colour at once
 
     // A flower that is still drawing itself keeps its dots on an off-screen
     // layer. Clear that same layer and redraw its dots in the new colours
@@ -1728,6 +1763,7 @@
   // green again) and the team's redrawFlower() makes it draw itself anew.
   function regrowFlower(flower) {
     headless.delete(flower);
+    petalCache.delete(flower);
     const wilt = activeWilt(flower);
     if (wilt) {
       wilt.gone = true;
@@ -1755,15 +1791,21 @@
     if (keyboardIndex >= 0) {
       flower = flowers()[keyboardIndex] || null;
     } else if (mouseIn) {
-      flower = flowerAt(mouseX / width, mouseY / height);
+      flower = flowerUnderMouse();
     }
     if (flower) ring.draw(now, flower);
+  }
+
+  // The flower under the mouse, worked out once per frame (the hover ring
+  // and the cursor both need it).
+  function flowerUnderMouse() {
+    return perFrame('hover', () => flowerAt(mouseX / width, mouseY / height));
   }
 
   // What is under the mouse and its colour (for the cursor).
   function cursorTarget() {
     if (typeof mouseX !== 'number') return null;
-    const flower = flowerAt(mouseX / width, mouseY / height);
+    const flower = flowerUnderMouse();
     if (flower) return { rgb: petalColour(flower) };
     const onLeaf = leafAt(mouseX, mouseY);
     if (onLeaf) return { rgb: (onLeaf.leaf.colours && onLeaf.leaf.colours.light) || LEAF_TINT };
@@ -1980,6 +2022,7 @@
 
   window.draw = function (...args) {
     if (!canvasReady()) return;
+    frame++;                                  // a new frame: per-frame answers are worked out again
     updatePlants(performance.now());          // grow planted stems before the garden is drawn
     updateHeads(performance.now());           // move falling flower heads
     applyRecolours(performance.now());        // spread new colours across flowers
