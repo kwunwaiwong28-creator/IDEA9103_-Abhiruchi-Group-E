@@ -8,7 +8,7 @@ Open `index.html` in a browser (an internet connection is needed, because p5.js 
 
 ## Interaction instructions
 
-- **Watch:** the four flowers bloom one after another, each keeping a different kind of time (see *Time-based* below). Each flower then stays in full bloom for 6 seconds and wilts over 15 seconds: its colours fade to dry browns, its dots fall away in the wind, and its stem and leaves dry and bend with it. After 2 seconds as a dry stem, the stem turns green again and the flower blooms again with its own clock, so the garden repeats this life cycle forever. Meanwhile dots drift inside the flowers, leaves sway in the wind and the background lines wander.
+- **Watch:** the four flowers open quickly one after another, each keeping a different kind of time (see *Time-based* below). Then they take turns: one shared 30-second garden cycle gives each flower its own slot, so while one flower wilts (its dots fall in the wind, its stem and leaves dry and bend), the others stay open. After a short rest as a dry stem it blooms again with its own clock, forever, so the picture never empties. Flowers you plant by clicking join the same rhythm. Meanwhile dots drift inside the flowers, leaves sway in the wind and the background lines wander.
 - **Refresh the page:** every refresh generates a new composition (new colours, petal counts and dot layouts) and starts the cycle again.
 - **Move the mouse (user input):** the mouse is a small dot with a short trail of dots. It grows and takes the colour of anything you can touch; over a flower, a ring of small dots also circles it.
 - **Click a flower:** it bounces with a soft chime (higher on each click) and a new set of colours spreads across it from where you clicked, with a small ring of dots in the new colour. The first three clicks in a row change its colours; on the fourth, its whole head falls off the stem to the ground with a falling run of soft notes and a low thump when it lands; a few seconds later it draws itself again on the stem.
@@ -56,24 +56,25 @@ Randomness decides everything that stays fixed for one viewing; Perlin noise dri
 
 ### Time-based (`time-mechanic.js`) — Yeheng Li
 
-**Four flowers, four clocks.** Timers and scheduled events decide when and how each flower blooms, how long it stays open, and when it wilts. Each flower keeps a different kind of time, so each one opens in its own way. The flower shapes, colours, dots and noise movement all come from `perlin-layer.js`; the time mechanic decides *when* dots appear, *how far* each petal or centre is open, and *when* everything dries and falls.
+**Four flowers, four clocks, one garden rhythm.** Timers and scheduled events decide when and how each flower blooms, how long it stays open, and when it wilts. Each flower keeps a different kind of time, so each one opens in its own way. Following our tutor's feedback that time should set the rhythm of the whole picture, one shared **garden cycle** now conducts all the flowers: they take turns, so the composition always stays balanced and full. The flower shapes, colours, dots and noise movement all come from `perlin-layer.js`; the time mechanic decides *when* dots appear, *how fast* each flower draws itself, and *when* everything dries, falls and regrows.
 
-Life of every flower: bud → **bloom** (its own clock) → **full bloom** (6 s) → **wilt** (15 s; dots dry and fall, stem and leaves bend) → **rest** (2 s, dry stem) → bloom again, forever.
+Life of every flower: bud → **bloom** (its own clock) → **full bloom** → **wilt** (dots dry and fall, stem and leaves bend) → **rest** (2 s, dry stem) → bloom again at its next slot in the garden cycle, forever.
 
-| Flower | Clock | How it blooms | Timing |
-| --- | --- | --- | --- |
-| Top-left (self-drawing) | **Sundial** | All dot pens line up like one clock hand and sweep clockwise from twelve o'clock, leaving dots behind them. | 0–8 s, steady |
-| Top-right (spiky) | **Hourglass** | Centre dots pile up like falling sand, faster and faster; then the spikes push out and turn from white to their own colour. | 2.5–12.5 s, speeds up |
-| Middle (round) | **Ticking** | A green bud opens one petal per beat, from the top, then left and right in turn; the petals change from green to their own colour. | 5–16 s, one petal per beat |
-| Bottom-right (self-drawing) | **Heartbeat** | Dots are added in bursts that come faster and faster, and the flower swells slightly on every beat. | 9.5–17.5 s, beats speed up |
+| Flower | Clock | How it blooms | Bloom | Wilt | Slot in the 30 s cycle |
+| --- | --- | --- | --- | --- | --- |
+| Top-left | **Sundial** | All dot pens line up like one clock hand and sweep clockwise from twelve o'clock. | 6 s, steady | 10 s | 0 s |
+| Middle | **Ticking** | The dot pens move only on each tick, a short step per beat, like a second hand. | 8 s, 14 ticks | 9 s | 7.5 s |
+| Top-right | **Hourglass** | The centre fills like falling sand, faster and faster; then the petals break out. | 7 s, speeds up | 9 s | 15 s |
+| Bottom-right | **Heartbeat** | Dots are added in bursts that come faster and faster; the flower swells on every beat. | 6 s, beats speed up | 10 s | 22.5 s |
 
-- **Timer and events:** a `Timer` class (`millis()`-based) with `at(seconds, action)` fires actions in time order. One shared garden clock gives each flower its own start time and bloom length (`CLOCKS`).
-- **Full bloom:** every flower stays fully open for `MATURE_SECONDS` (6 s) before it starts to wilt. This pause also gives the audio mechanic a calm moment to respond to the music.
-- **Wilting (self-drawing flowers):** when a self-drawing flower is complete, its `onCreated` event creates a `FlowerWilt`. After the full-bloom pause, every dot gets a scheduled drop event (petal tips first, the centre last, in noisy patches); it then falls with gravity, drifts in the same wind as the leaves and fades out.
-- **Wilting (noisy flowers):** `NoisyFlowerLife` uses the same drop rule for the two noisy flowers. Their colours fade to brown, the dots let go and fall, and the petals then shrivel back into the centre.
-- **Stem and leaves:** `StemWilt` dries each flower's stem and leaves together with the flower: the stem bends outwards and sinks, the leaves droop and turn brown. The original stem and leaf values are recorded first (`STEM_HOME`, `LEAF_HOME`), so the team's objects are only changed, never replaced.
-- **Rest and regrow:** after the wilt, a scheduled event leaves only the dry stem for `REST_SECONDS` (2 s). The next event restarts the flower's own bloom clock with new noise seeds, so every new bloom is slightly different, while the stem and leaves recover over `RECOVER_SECONDS` (3 s) and return exactly to their original values. The cycle repeats forever.
-- **Working with the other files:** `sketch.js` calls `FlowerDotAnimator.update()` and `NoisyFlower.draw()` every frame. So that the other team files stay unchanged, `time-mechanic.js` (loaded after `perlin-layer.js`) replaces these two methods with timed versions that still use the team's own pens, dots, noise and drawing code.
+- **Garden cycle (rhythm and balance):** `GARDEN_CYCLE` (30 s) is shared by every flower, and each flower has its own slot, a quarter cycle apart. Opposite corners (top-left and bottom-right) are half a cycle apart, so when one wilts the other is open. At the start all four open within a few seconds so the picture is full at once; after that each flower settles into its slot. The full bloom stretches to fill the time until the flower's next slot (at least `MIN_HOLD`, 6 s), so the bare-stem rest is always short and no part of the picture stays empty for long.
+- **Planted flowers:** a flower planted by the user-input mechanic gets its own slot from the moment it is planted (`flower.gardenSlot`), so it lives the same cycle without wilting at the same time as the others.
+- **Timer and events:** a `Timer` class (`millis()`-based) with `at(seconds, action)` fires actions in time order: every dot's drop, the rest, the regrow and the stem's recovery are scheduled events.
+- **Four clocks on self-drawing flowers:** all four flowers are `FlowerDotAnimator`s, so each clock is a different *pen budget* (`penBudget()`): how far each dot pen may travel at each moment of the bloom. The sundial is steady, the hourglass fills the centre pens first and faster and faster, the ticking clock moves in steps, and the heartbeat moves in bursts.
+- **Wilting:** when a flower is complete, its `onCreated` event creates a `FlowerWilt`. After the full bloom, every dot gets a scheduled drop event (petal tips first, the centre last, in noisy patches); it then falls with gravity, drifts in the same wind as the leaves and fades out.
+- **Stem and leaves:** `StemWilt` dries each flower's stem and leaves together with the flower: the stem bends outwards and sinks, the leaves droop and turn brown. The original values are recorded first (`STEM_HOME`, `LEAF_HOME`), so the team's objects are only changed, never replaced, and they recover over `RECOVER_SECONDS` (3 s) as the flower regrows.
+- **Regrow:** the regrow event restarts the flower's own bloom clock with new noise seeds, so every new bloom is slightly different.
+- **Working with the other files:** `sketch.js` calls `FlowerDotAnimator.update()` every frame. So that the other team files stay unchanged, `time-mechanic.js` (loaded after `perlin-layer.js`) replaces this method with a timed version that still uses the team's own pens, dots, noise and drawing code. Colours, background, wind and the other mechanics are not changed.
 
  ### Audio (`audio-mechanic.js`) — Rongwei zhao
 
@@ -168,7 +169,7 @@ From this I kept four rules for the final version: **let the viewer change the g
 ## Techniques
 
 - **Perlin noise (`noise()`)** for smooth, continuous movement; **`random()`** for one-off decisions.
-- **Timers and scheduled events:** a `Timer` class with `at(seconds, action)` fires actions in order as time passes; one shared garden clock gives each flower its own bloom clock (sundial, hourglass, ticking, heartbeat), a full-bloom pause and a scheduled wilt.
+- **Timers and scheduled events:** a `Timer` class with `at(seconds, action)` fires actions in order as time passes; one shared garden cycle gives each flower its own bloom clock (sundial, hourglass, ticking, heartbeat) and its own slot, so the flowers take turns and set the rhythm of the whole picture.
 - **Colour blending:** `mixRgb()` fades flowers, stems and leaves gradually from their own colours to dry browns.
 - **Easing:** a smooth-step function (`smooth01`) makes every opening and colour change gradual.
 - **Callbacks:** `onCreated` lets one mechanic start another without the files depending on each other.

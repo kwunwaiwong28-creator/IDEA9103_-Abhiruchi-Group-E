@@ -3,18 +3,21 @@
    Mechanic owner: Yeheng Li
 
    IDEA
-   Four flowers, four clocks. Each flower in the garden keeps a different kind of time, so each one
-   blooms in its own way. Once it is fully open it stays in bloom for a while, then wilts (the stem
-   wilts too), rests as a dry stem, and blooms again. The garden repeats this life cycle forever.
+   Four flowers, four clocks, one garden rhythm. Each flower keeps a different kind of time, so each
+   one blooms in its own way. Once open it stays in bloom, then wilts (the stem wilts too), rests
+   briefly as a dry stem and blooms again, forever. One shared GARDEN_CYCLE sets the rhythm of the
+   whole picture: the flowers take turns, a quarter cycle apart, so while one wilts the others are
+   open and the composition always stays balanced and full. Flowers planted later by the user-input
+   mechanic join the same rhythm from the moment they are planted.
 
      SUNDIAL    top-left flower      all dot pens line up like one clock hand and sweep clockwise
-     HOURGLASS  top-right flower     centre dots pile up like falling sand, then spikes break out
-     TICKING    middle flower        a green bud opens one petal per beat, top first, then left/right
+     HOURGLASS  top-right flower     centre dots pile up like falling sand, then the petals break out
+     TICKING    middle flower        the dot pens move only on each tick, like a second hand
      HEARTBEAT  bottom-right flower  dots are added in beats that get faster; the flower pulses
 
    LIFE CYCLE OF EVERY FLOWER (all driven by timers and scheduled events)
      bud -> BLOOM (its own clock) -> MATURE (stays open) -> WILT (dots dry and fall, stem bends)
-         -> REST (only the dry stem) -> BLOOM again ...
+         -> REST (only the dry stem) -> BLOOM again at its next slot in the GARDEN_CYCLE ...
 
    HOW IT WORKS WITH THE TEAM'S FILES
    - The flower shapes, colours, dots and Perlin-noise movement all come from perlin-layer.js
@@ -28,7 +31,7 @@
      Section 1  Settings ........................ global constants
      Section 2  Helper functions ................ clockNow(), smooth01(), mixRgb(), rgbOf()
      Section 3  class Timer ..................... at(seconds, action), start(), seconds(), update()
-     Section 4  Bloom clocks .................... CLOCKS, clockOf(), penBudget(), lastHeartBeat()
+     Section 4  Bloom clocks .................... GARDEN_CYCLE, CLOCKS, clockOf(), penBudget()
      Section 5  class StemWilt .................. apply(dryness), restore()
      Section 6  class WiltingDot ................ drop(), colourAt(), update(), draw()
      Section 7  class FlowerWilt ................ wilt -> rest -> regrow for a self-drawing flower
@@ -36,9 +39,9 @@
      Section 9  Connecting to the team's classes  bloomUpdate(), lifeDraw()
 
    VARIABLES
-     Global   : the settings in section 1, CLOCKS, clockZero, STEM_HOME, LEAF_HOME
-     Instance : e.g. Timer.events, FlowerWilt.phase, NoisyFlowerLife.cycle, WiltingDot.state
-     Local    : values worked out fresh each frame, e.g. tau, budget, dryness, pulse, wind
+     Global   : the settings in section 1, GARDEN_CYCLE, CLOCKS, clockZero, STEM_HOME, LEAF_HOME
+     Instance : e.g. Timer.events, FlowerWilt.phase/hold, flower.gardenSlot, WiltingDot.state
+     Local    : values worked out fresh each frame, e.g. tau, budget, nextStart, dryness, pulse
 
    AI ACKNOWLEDGEMENT
    Parts of this code were generated with the help of Claude (Anthropic) and then edited by Yeheng Li.
@@ -56,12 +59,11 @@
 ------------------------------------------------------------------------------------------------- */
 
 // Wilting
-const WILT_SECONDS = 15;          // how long a flower takes to wilt completely
+const WILT_SECONDS = 15;          // default wilt length (each flower sets its own in CLOCKS)
 const MAX_FALL_SECONDS = 2.6;     // longest time a falling dot stays visible
 const DROOP = 0.12;               // how far the petals sag before their dots fall
 
 // Life cycle
-const MATURE_SECONDS = 6;         // a grown flower stays in full bloom before wilting (time for the audio mechanic)
 const REST_SECONDS = 2;           // the bare, dry stem stays on screen before the flower blooms again
 const RECOVER_SECONDS = 3;        // the stem turns green and straightens again as the next bloom starts
 
@@ -71,13 +73,20 @@ const STEM_SAG = 0.035;           // how far a dry stem top sinks (fraction of c
 const WILT_LEAVES = true;         // leaves on a wilting stem dry out and droop with it
 
 // Bloom clocks: when each flower first starts (seconds) and how long its bloom takes
+// GARDEN RHYTHM: all four flowers bloom quickly at the start so the picture is full, then each one
+// settles into its own slot of one shared GARDEN_CYCLE. The slots are a quarter cycle apart, so the
+// flowers take turns: while one wilts or rests, the others are open, and no part of the picture
+// stays empty for long. Each flower also blooms and wilts at its own speed.
+const GARDEN_CYCLE = 30;          // seconds of one full turn of the garden
+const MIN_HOLD = 6;               // shortest time a flower stays in full bloom
 const CLOCKS = {
-  sundial:   { start: 0.0, bloom: 8 },
-  hourglass: { start: 2.5, bloom: 10 },
-  ticking:   { start: 5.0, bloom: 11 },
-  heartbeat: { start: 9.5, bloom: 8 }
+  sundial:   { start: 0.0, slot: 0,    bloom: 6, wilt: 10 },   // top-left
+  ticking:   { start: 1.5, slot: 7.5,  bloom: 8, wilt: 9 },    // middle
+  hourglass: { start: 3.0, slot: 15,   bloom: 7, wilt: 9 },    // top-right
+  heartbeat: { start: 4.5, slot: 22.5, bloom: 6, wilt: 10 }    // bottom-right
 };
 const HEART_BEATS = 12;           // number of beats in the heartbeat bloom
+const TICKS = 14;                 // number of ticks in the ticking bloom (self-drawing version)
 
 // Colours
 const WILT_COLOURS = [[122, 84, 46], [98, 72, 50], [142, 112, 72], [80, 60, 42]];
@@ -164,7 +173,12 @@ class Timer {
 function clockOf(flower) {
   if (!flower.clockName) {
     if (flower instanceof FlowerDotAnimator) {
-      flower.clockName = flower.nx < 0.5 ? "sundial" : "heartbeat";
+      // all four flowers can be self-drawing: each place in the picture keeps its own clock
+      if (flower.nx < 0.3 && flower.ny < 0.3) flower.clockName = "sundial";        // top-left
+      else if (flower.ny < 0.3) flower.clockName = "hourglass";                     // top-right
+      else if (flower.nx > 0.75) flower.clockName = "heartbeat";                    // bottom-right
+      else flower.clockName = "ticking";                                            // middle
+      flower.gardenSlot = CLOCKS[flower.clockName].slot;
     } else {
       flower.clockName = flower.style === "spiky" ? "hourglass" : "ticking";
     }
@@ -178,9 +192,23 @@ function heartBeatTime(i, bloomSeconds) {
 }
 
 // How far round (radians) each dot pen may have travelled after `tau` seconds of blooming.
-function penBudget(clockName, tau, bloomSeconds) {
+function penBudget(clockName, tau, bloomSeconds, isCore = false) {
   let fullTurn = DRAW_LAPS * TWO_PI;              // DRAW_LAPS comes from perlin-layer.js
   if (tau >= bloomSeconds) return Infinity;       // bloom time is over: let every pen finish
+  let q = tau / bloomSeconds;
+
+  if (clockName === "hourglass") {
+    // centre pens fill like falling sand, faster and faster; then the petal pens break out
+    if (isCore) return fullTurn * pow(constrain(q / 0.6, 0, 1), 1.8);
+    return fullTurn * smooth01((q - 0.45) / 0.55);
+  }
+
+  if (clockName === "ticking") {
+    // the pens move only on each tick, a short step per beat, like a second hand
+    let beat = q * TICKS;
+    let k = floor(beat);
+    return fullTurn * (k + smooth01((beat - k) / 0.25)) / TICKS;
+  }
 
   if (clockName === "sundial") {
     return fullTurn * tau / bloomSeconds;         // a steady sweep, like a sundial shadow
@@ -312,7 +340,8 @@ class StemWilt {
 ------------------------------------------------------------------------------------------------- */
 
 class WiltingDot {
-  constructor(dot, f) {
+  constructor(dot, f, wiltSeconds = WILT_SECONDS) {
+    this.wiltSeconds = wiltSeconds;
     this.x = dot.x;
     this.y = dot.y;
     this.size = dot.size;
@@ -336,7 +365,7 @@ class WiltingDot {
 
   // Petal tips sag more than the centre as time goes on.
   droop(now) {
-    let g = now / WILT_SECONDS;
+    let g = now / this.wiltSeconds;
     return DROOP * g * g * this.f;
   }
 
@@ -399,7 +428,7 @@ class WiltingDot {
 
 // Start a self-drawing flower again with the same shape and colour pens.
 // New noise seeds mean each new bloom is slightly different, like a real flower.
-function redrawFlower(flower) {
+function redrawFlower(flower, startTime) {
   flower.dots = [];
   flower.finished = false;
   for (const pen of flower.pens) {
@@ -411,7 +440,7 @@ function redrawFlower(flower) {
     pen.finished = false;
   }
   flower.resetLayer();
-  flower.bloomStart = clockNow();    // replay this flower's bloom clock
+  flower.bloomStart = startTime;     // replay this flower's bloom clock at its place in the garden cycle
   flower.clockReady = false;
 }
 
@@ -419,6 +448,23 @@ class FlowerWilt {
   constructor(flower) {
     this.flower = flower;
     this.timer = new Timer();
+    let clock = CLOCKS[clockOf(flower)];
+    let wilt = clock.wilt;
+    // the next bloom starts at this flower's next slot in the garden cycle; the full bloom stretches
+    // to fill the time until then, so the rest (bare stem) is always short
+    let now = clockNow();
+    let earliest = now + MIN_HOLD + wilt + REST_SECONDS;
+    // a flower planted later (user input) keeps the rhythm of the moment it was planted
+    if (flower.gardenSlot === undefined) {
+      let planted = flower.bloomStart !== undefined ? flower.bloomStart : now;
+      flower.gardenSlot = ((planted % GARDEN_CYCLE) + GARDEN_CYCLE) % GARDEN_CYCLE;
+    }
+    let slot = flower.gardenSlot;
+    let nextStart = slot + ceil((earliest - slot) / GARDEN_CYCLE) * GARDEN_CYCLE;
+    let hold = nextStart - now - wilt - REST_SECONDS;
+    let regrowAt = hold + wilt + REST_SECONDS;
+    this.hold = hold;
+    this.wilt = wilt;
     this.gone = false;
     this.lastWiltTime = 0;
     this.stemWilt = new StemWilt(flower);
@@ -432,7 +478,7 @@ class FlowerWilt {
     for (const d of flower.dots) {
       let r = sqrt(d.x * d.x + d.y * d.y);
       let f = constrain(r / flower.outline(atan2(d.y, d.x)), 0, 1);
-      this.dots.push(new WiltingDot(d, f));
+      this.dots.push(new WiltingDot(d, f, wilt));
       orders.push(0.65 * (1 - f) + 0.25 * noise(patchSeed + d.x * 1.8, d.y * 1.8) + random(0.1));
     }
 
@@ -440,25 +486,25 @@ class FlowerWilt {
     let ranked = this.dots.map((dot, i) => i).sort((a, b) => orders[a] - orders[b]);
     ranked.forEach((index, rank) => {
       let dot = this.dots[index];
-      dot.release = pow(rank / (ranked.length - 1), 0.75) * (WILT_SECONDS - MAX_FALL_SECONDS);
-      this.timer.at(MATURE_SECONDS + dot.release, (now) => dot.drop(now - MATURE_SECONDS));
+      dot.release = pow(rank / (ranked.length - 1), 0.75) * (wilt - MAX_FALL_SECONDS);
+      this.timer.at(hold + dot.release, (now) => dot.drop(now - hold));
     });
 
     // event: every dot has fallen, only the dry stem is left
-    this.timer.at(MATURE_SECONDS + WILT_SECONDS, () => {
+    this.timer.at(hold + wilt, () => {
       this.phase = "rest";
     });
 
     // event: regrow - the flower starts drawing itself again and the stem recovers
-    this.timer.at(MATURE_SECONDS + WILT_SECONDS + REST_SECONDS, (now) => {
+    this.timer.at(regrowAt, (now) => {
       this.phase = "regrow";
       this.regrowStart = now;
-      redrawFlower(this.flower);
+      redrawFlower(this.flower, nextStart);
     });
 
     // event: cycle complete - the stem is handed back exactly as it was.
     // When the new bloom finishes, onCreated fires again and a new FlowerWilt starts.
-    this.timer.at(MATURE_SECONDS + WILT_SECONDS + REST_SECONDS + RECOVER_SECONDS, () => {
+    this.timer.at(regrowAt + RECOVER_SECONDS, () => {
       this.stemWilt.restore();
       this.gone = true;
     });
@@ -474,7 +520,7 @@ class FlowerWilt {
     if (this.gone) return;
 
     let now = this.timer.seconds();
-    let wiltTime = max(0, now - MATURE_SECONDS);      // 0 while the flower is still in full bloom
+    let wiltTime = max(0, now - this.hold);      // 0 while the flower is still in full bloom
     let dt = wiltTime - this.lastWiltTime;
     this.lastWiltTime = wiltTime;
 
@@ -482,7 +528,7 @@ class FlowerWilt {
     if (this.phase === "regrow") {
       this.stemWilt.apply(1 - (now - this.regrowStart) / RECOVER_SECONDS);
     } else {
-      this.stemWilt.apply(wiltTime / WILT_SECONDS);
+      this.stemWilt.apply(wiltTime / this.wilt);
     }
 
     if (this.phase !== "wilt") return;
@@ -545,7 +591,9 @@ class NoisyFlowerLife {
     this.flower = flower;
     this.clockName = clockOf(flower);
     this.clock = CLOCKS[this.clockName];
-    this.period = this.clock.bloom + MATURE_SECONDS + WILT_SECONDS + REST_SECONDS;
+    this.period = GARDEN_CYCLE;
+    this.wilt = this.clock.wilt;
+    this.hold = GARDEN_CYCLE - this.clock.bloom - this.wilt - REST_SECONDS;
     this.stemWilt = new StemWilt(flower);
 
     this.cycle = -1;                   // which life we are in (0, 1, 2 ...)
@@ -621,7 +669,7 @@ class NoisyFlowerLife {
     }
     all.sort((a, b) => a.dropOrder - b.dropOrder);
     all.forEach((d, rank) => {
-      d.dropAt = pow(rank / (all.length - 1), 0.75) * (WILT_SECONDS - MAX_FALL_SECONDS);
+      d.dropAt = pow(rank / (all.length - 1), 0.75) * (this.wilt - MAX_FALL_SECONDS);
     });
     this.falling = [];
     this.lastWiltTime = 0;
@@ -682,8 +730,8 @@ class NoisyFlowerLife {
     let dryness = 0;
     if (tau < bloomSeconds) {
       dryness = cycle > 0 ? 1 - tau / RECOVER_SECONDS : 0;
-    } else if (tau >= bloomSeconds + MATURE_SECONDS) {
-      dryness = min(1, (tau - bloomSeconds - MATURE_SECONDS) / WILT_SECONDS);
+    } else if (tau >= bloomSeconds + this.hold) {
+      dryness = min(1, (tau - bloomSeconds - this.hold) / this.wilt);
     }
     this.stemWilt.apply(max(0, dryness));
 
@@ -691,18 +739,18 @@ class NoisyFlowerLife {
       drawNoisyAs(flower, this.bloomLook(tau / bloomSeconds));      // BLOOM
       return;
     }
-    if (tau < bloomSeconds + MATURE_SECONDS) {
+    if (tau < bloomSeconds + this.hold) {
       teamNoisyDraw.call(flower);                                    // MATURE: exactly as perlin-layer.js draws it
       return;
     }
 
     // WILT, then REST
-    let secs = tau - bloomSeconds - MATURE_SECONDS;
+    let secs = tau - bloomSeconds - this.hold;
     if (!this.wiltStarted) {                              // event: wilting begins
       this.startWilt();
       this.wiltStarted = true;
     }
-    if (secs < WILT_SECONDS) drawNoisyAs(flower, this.wiltLook(secs / WILT_SECONDS, secs));
+    if (secs < this.wilt) drawNoisyAs(flower, this.wiltLook(secs / this.wilt, secs));
 
     // dots that have let go keep falling in the shared wind
     let dt = secs - this.lastWiltTime;
@@ -759,8 +807,8 @@ function bloomUpdate(t) {
   }
 
   // each DotPen takes as many single steps as the clock allows this frame
-  let budget = penBudget(clockName, tau, clock.bloom);
   for (const pen of this.pens) {
+    let budget = penBudget(clockName, tau, clock.bloom, pen.dotSize > 0.052);   // core pens use the larger dots
     pen.stepsPerFrame = 1;
     let steps = 0;
     while (!pen.finished && pen.turned < budget && steps < 400) {
