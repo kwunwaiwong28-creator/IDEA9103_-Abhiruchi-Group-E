@@ -17,8 +17,8 @@ const FLOWER_SCHEMES = [
   { petalBase: "crimson", petalDots: ["white", "amber"],     coreBase: "cobalt",  coreDots: ["skyBlue", "white", "violet"] }
 ];
 
-const MIDNIGHT = [6, 8, 18];
-const NET_BLUES = [[30, 110, 190], [45, 130, 210], [22, 86, 160]];
+const MIDNIGHT = [9, 9, 11];
+const NET_BLUES = [[132, 132, 137], [168, 168, 173], [98, 98, 103]];
 
 const LEAF_SETS = [
   { dark: [38, 118, 58],  light: [96, 176, 88],   vein: [170, 220, 140] },
@@ -46,53 +46,137 @@ function petalOutline(angle, style, count, rotation, inner) {
 }
 
 class PerlinBackground {
-  constructor(horizontalCount, verticalCount) {
-    this.lines = [];
+  constructor() {
+    this.columns = 16;
+    this.shift = 0;
+    this.seed = random(1000);
+    this.size = "";
+  }
 
-    for (let i = 0; i < horizontalCount; i++) {
-      this.lines.push(this.makeLine(true, i, horizontalCount));
+  buildScales(t) {
+    let w = width / this.columns;
+    let h = w * 0.48;
+    let rowCount = ceil(height / h) + 4;
+    let z = t * this.shift;
+    let grid = [];
+
+    for (let r = 0; r <= rowCount; r++) {
+      let points = [];
+      for (let c = -2; c <= this.columns + 2; c++) {
+        let x = (c + (r % 2) * 0.5) * w;
+        let y = (r - 2) * h;
+        let nx = x / width;
+        let ny = y / height;
+        points.push({
+          x: x + (noise(this.seed + nx * 1.3, ny * 1.3, z) - 0.5) * width * 0.24,
+          y: y + (noise(this.seed + 20 + nx * 1.3, ny * 1.3, z) - 0.5) * width * 0.22,
+          nx: nx,
+          ny: ny
+        });
+      }
+      grid.push(points);
     }
-    for (let i = 0; i < verticalCount; i++) {
-      this.lines.push(this.makeLine(false, i, verticalCount));
+
+    this.outlines = [[], [], [], [], []];
+    this.inners = [[], [], [], [], []];
+
+    for (let r = 0; r < grid.length - 1; r++) {
+      let tipShift = r % 2 === 0 ? 0 : 1;
+      let run = null;
+      let runLevel = -1;
+
+      for (let c = 0; c < grid[r].length - 1; c++) {
+        let left = grid[r][c];
+        let right = grid[r][c + 1];
+        let tip = grid[r + 1][c + tipShift];
+        if (!tip) continue;
+
+        let nx = (left.nx + right.nx) / 2;
+        let ny = left.ny;
+        let point = map(noise(this.seed + 30 + nx * 3, ny * 3), 0, 1, 0.7, 1.25);
+        let sheen = noise(this.seed + 40 + nx * 1.6 - z * 0.4, ny * 1.6 + z * 0.2);
+        let level = constrain(floor(map(sheen, 0.3, 0.7, 0, 5)), 0, 4);
+
+        let outline = this.scaleCurve(left, right, tip, point, 1);
+        if (level !== runLevel) {
+          run = outline;
+          runLevel = level;
+          this.outlines[level].push(run);
+        } else {
+          run.push(...outline.slice(1));
+        }
+
+        if (level >= 1) {
+          this.inners[level].push(this.scaleCurve(left, right, tip, point, 0.58));
+        }
+        if (level >= 3) {
+          this.inners[level].push(this.scaleCurve(left, right, tip, point, 0.3));
+        }
+      }
     }
   }
 
-  makeLine(horizontal, index, total) {
-    return {
-      horizontal: horizontal,
-      position: (index + 0.5 + random(-0.3, 0.3)) / total,
-      seed: random(1000),
-      amplitude: random(0.02, 0.05),
-      colour: random(NET_BLUES),
-      weight: random(1.2, 2.4)
-    };
+  scaleCurve(left, right, tip, point, k) {
+    let cx = (left.x + right.x) / 2;
+    let cy = (left.y + right.y) / 2;
+    let dropX = tip.x - cx;
+    let dropY = tip.y - cy;
+    let lift = (1 - k) * 0.35;
+    let curve = [];
+
+    for (let s = 0; s <= 10; s++) {
+      let f = s / 10;
+      let u = abs(f * 2 - 1);
+      let d = pow(1 - pow(u, point), 0.55);
+      let bx = lerp(left.x, right.x, f);
+      let by = lerp(left.y, right.y, f);
+      let x = cx + (bx - cx) * k + dropX * (d * k - lift);
+      let y = cy + (by - cy) * k + dropY * (d * k - lift);
+      curve.push([x, y]);
+    }
+    return curve;
+  }
+
+  shade(level, alphaScale) {
+    let grey = NET_BLUES[[2, 2, 0, 0, 1][level]];
+    stroke(grey[0], grey[1], grey[2], [140, 165, 190, 215, 240][level] * alphaScale);
+  }
+
+  drawLines(lines) {
+    beginShape();
+    for (const line of lines) {
+      vertex(line[0][0], line[0][1], true);
+      for (let j = 1; j < line.length; j++) {
+        vertex(line[j][0], line[j][1]);
+      }
+    }
+    endShape();
   }
 
   draw(t) {
     background(MIDNIGHT[0], MIDNIGHT[1], MIDNIGHT[2]);
     noFill();
 
+    let size = width + "x" + height;
+    if (this.shift > 0 || this.size !== size) {
+      this.buildScales(t);
+      this.size = size;
+    }
+
     let scaleFactor = width / 900;
 
-    for (const line of this.lines) {
-      stroke(line.colour[0], line.colour[1], line.colour[2], 210);
-      strokeWeight(line.weight * scaleFactor);
+    strokeWeight(1.5 * scaleFactor);
+    for (let level = 0; level < 5; level++) {
+      if (this.outlines[level].length === 0) continue;
+      this.shade(level, 1);
+      this.drawLines(this.outlines[level]);
+    }
 
-      beginShape();
-      if (line.horizontal) {
-        for (let x = -20; x <= width + 20; x += 10) {
-          let n = noise(line.seed + (x / width) * 3, t * 0.12);
-          let y = line.position * height + map(n, 0, 1, -1, 1) * line.amplitude * height;
-          vertex(x, y);
-        }
-      } else {
-        for (let y = -20; y <= height + 20; y += 10) {
-          let n = noise(line.seed + (y / height) * 3, t * 0.12);
-          let x = line.position * width + map(n, 0, 1, -1, 1) * line.amplitude * width;
-          vertex(x, y);
-        }
-      }
-      endShape();
+    strokeWeight(1 * scaleFactor);
+    for (let level = 1; level < 5; level++) {
+      if (this.inners[level].length === 0) continue;
+      this.shade(level - 1, 0.8);
+      this.drawLines(this.inners[level]);
     }
   }
 }
