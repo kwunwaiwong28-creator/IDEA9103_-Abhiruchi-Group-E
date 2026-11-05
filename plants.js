@@ -1,8 +1,15 @@
+/*
+  Perlin noise gives each stem a natural bend, shading and texture.
+*/
+
+// Stem colours: a dark and a mid tone for green and blue stems.
 const STEM_COLOURS = {
   green: { dark: [30, 92, 46],   mid: [70, 150, 72] },
   blue:  { dark: [40, 110, 170], mid: [126, 175, 219] }
 };
 
+// A stem from a top point down to a bottom point.
+// Positions are fractions of the canvas, so it fits any window size.
 class Stem {
   constructor(topX, topY, bottomX, bottomY, thicknessN, colourName = "green") {
     this.topX = topX;
@@ -12,9 +19,11 @@ class Stem {
     this.thicknessN = thicknessN;
     this.colours = STEM_COLOURS[colourName];
 
+    // A fixed seed for each stem, so its texture stays the same every frame.
     this.textureSeed = topX * 1000 + bottomX * 100;
   }
 
+  // A point partway down the stem (0 = top, 1 = bottom). Used to attach the leaves.
   pointAt(f) {
     return {
       x: lerp(this.topX, this.bottomX, f),
@@ -22,6 +31,8 @@ class Stem {
     };
   }
 
+  // Picks a colour from light to dark depending on the position across the stem,
+  // so the stem looks round, with light coming from one side.
   shade(across, dark, mid, pale, shadow) {
     let b = 0.5 + 0.5 * cos((across + 0.4) * PI * 0.7);
     if (b > 0.75) {
@@ -32,6 +43,7 @@ class Stem {
     return [lerp(shadow[0], mid[0], k), lerp(shadow[1], mid[1], k), lerp(shadow[2], mid[2], k)];
   }
 
+  // Runs every frame and draws the stem in layers.
   draw() {
     let x1 = this.topX * width;
     let y1 = this.topY * height;
@@ -51,6 +63,8 @@ class Stem {
     let shadow = [dark[0] * 0.75, dark[1] * 0.75, dark[2] * 0.75];
     let seed = this.textureSeed;
 
+    // Step 1: points down the middle of the stem. Noise adds a gentle bend
+    // and makes the width change a little.
     let steps = max(16, floor(len / 8));
     let centre = [];
     for (let i = 0; i <= steps; i++) {
@@ -61,6 +75,7 @@ class Stem {
       centre.push({ x: x1 + dx * d + px * bend, y: y1 + dy * d + py * bend, half: half, f: f });
     }
 
+    // Step 2: 9 strips from one side to the other, shaded so the stem looks round.
     noStroke();
     let strips = 9;
     for (let k = 0; k < strips; k++) {
@@ -71,6 +86,7 @@ class Stem {
       this.drawBand(centre, a, b, px, py);
     }
 
+    // Step 3: noise adds light and dark patches, and the bottom gets darker.
     for (let i = 0; i < steps; i += 3) {
       let next = min(i + 3, steps);
       let p = centre[i];
@@ -87,6 +103,7 @@ class Stem {
       );
     }
 
+    // Step 4: thin lines running down the stem, like plant fibres.
     noFill();
     strokeWeight(max(0.8, thick * 0.03));
     let ridges = [-0.72, -0.48, -0.22, 0.04, 0.3, 0.55, 0.78];
@@ -101,6 +118,7 @@ class Stem {
       endShape();
     });
 
+    // Step 5: tiny hairs on the edges. Noise decides where they grow.
     strokeWeight(max(0.6, thick * 0.025));
     stroke(pale[0], pale[1], pale[2], 120);
     for (let i = 1; i < steps; i++) {
@@ -117,6 +135,7 @@ class Stem {
       }
     }
 
+    // Step 6: rings across the stem, spaced unevenly with noise.
     strokeWeight(max(1, thick * 0.05));
     let gap = thick * 1.6;
     let d = gap * map(noise(seed + 400), 0, 1, 0.5, 1);
@@ -134,6 +153,7 @@ class Stem {
     }
   }
 
+  // Draws one strip between two positions across the stem.
   drawBand(centre, a, b, px, py) {
     beginShape();
     for (const c of centre) vertex(c.x + px * a * c.half, c.y + py * a * c.half);
