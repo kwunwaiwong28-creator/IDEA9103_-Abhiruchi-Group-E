@@ -507,7 +507,7 @@ function windStrength(t) {
 
 // C · A leaf that swings in the wind, with a Perlin noise texture.
 class WindLeaf {
-  constructor(pivot, lengthN, direction, tilt = 0.3) {
+    constructor(pivot, lengthN, direction, tilt = 0.3, colours = random(LEAF_SETS)) {
     this.px = pivot.x;
     this.py = pivot.y;
     this.lengthN = lengthN;
@@ -516,7 +516,7 @@ class WindLeaf {
     this.tilt = tilt;
 
     this.widthRatio = random(0.46, 0.6);
-    this.colours = random(LEAF_SETS);
+    this.colours = colours;
 
     // Each leaf also flutters on its own, so they don't all move together.
     this.flutterSeed = random(1000);
