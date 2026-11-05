@@ -21,15 +21,20 @@ function setup() {
 
   perlinBackground = new PerlinBackground(18, 14);
 
-  stems.push(new Stem(0.22, 0.17, 0.19, 1.02, 0.03));
-  stems.push(new Stem(0.67, 0.18, 0.69, 1.02, 0.034));
-  stems.push(new Stem(0.36, 0.47, 0.33, 1.02, 0.036, "blue"));
-  stems.push(new Stem(0.84, 0.78, 0.85, 1.02, 0.03));
+  let plantColours = shuffle(["green", "blue"]);
+  let colourA = plantColours[0];
+  let colourB = plantColours[1];
+  let leafSets = { green: LEAF_SETS[0], blue: LEAF_SETS[2] };
 
-  leaves.push(new WindLeaf(stems[1].pointAt(0.40), 0.36, 1, 0.15));
-  leaves.push(new WindLeaf(stems[1].pointAt(0.64), 0.30, -1, -0.05));
-  leaves.push(new WindLeaf(stems[0].pointAt(0.36), 0.26, -1, 0.2));
-  leaves.push(new WindLeaf(stems[2].pointAt(0.72), 0.32, -1, 0.3));
+  stems.push(new Stem(0.22, 0.17, 0.19, 1.02, 0.03, colourA));
+  stems.push(new Stem(0.67, 0.18, 0.69, 1.02, 0.034, colourB));
+  stems.push(new Stem(0.36, 0.47, 0.33, 1.02, 0.036, colourB));
+  stems.push(new Stem(0.84, 0.78, 0.85, 1.02, 0.03, colourA));
+
+  leaves.push(new WindLeaf(stems[1].pointAt(0.40), 0.36, 1, 0.15, leafSets[colourB]));
+  leaves.push(new WindLeaf(stems[1].pointAt(0.64), 0.30, -1, -0.05, leafSets[colourB]));
+  leaves.push(new WindLeaf(stems[0].pointAt(0.36), 0.26, -1, 0.2, leafSets[colourA]));
+  leaves.push(new WindLeaf(stems[2].pointAt(0.72), 0.32, -1, 0.3, leafSets[colourB]));
 
   let coloursA = pickFlowerColours();
   let coloursB = pickFlowerColours(random(FLOWER_SCHEMES.filter((s) => s !== coloursA.scheme)));
