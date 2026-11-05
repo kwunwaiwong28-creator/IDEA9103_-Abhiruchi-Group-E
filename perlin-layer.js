@@ -1,3 +1,13 @@
+/*
+
+  random() picks things that stay the same until the page is refreshed:
+  colours, petal counts, where each pen starts.
+  noise() gives smooth, natural change: wobbly dots, wind, leaf edges, the scales.
+
+  DotPen and NoisyDot build on the IDEA9103 Week 8 tutorial.
+*/
+
+// Colours picked from the Kusama painting.
 const PALETTE = {
   deepRed: [155, 17, 30],
   crimson: [200, 40, 45],
@@ -10,6 +20,7 @@ const PALETTE = {
   silver:  [190, 190, 200]
 };
 
+// Colour sets for the flowers. Each flower uses one set.
 const FLOWER_SCHEMES = [
   { petalBase: "deepRed", petalDots: ["white"],              coreBase: "violet",  coreDots: ["skyBlue", "cobalt", "white"] },
   { petalBase: "amber",   petalDots: ["crimson", "deepRed"], coreBase: "violet",  coreDots: ["skyBlue", "cobalt"] },
@@ -17,20 +28,25 @@ const FLOWER_SCHEMES = [
   { petalBase: "crimson", petalDots: ["white", "amber"],     coreBase: "cobalt",  coreDots: ["skyBlue", "white", "violet"] }
 ];
 
+// Background colours: a black base and three greys for the scale lines.
 const MIDNIGHT = [9, 9, 11];
 const NET_BLUES = [[132, 132, 137], [168, 168, 173], [98, 98, 103]];
 
+// Colour sets for the leaves: two greens and one blue.
 const LEAF_SETS = [
   { dark: [38, 118, 58],  light: [96, 176, 88],   vein: [170, 220, 140] },
   { dark: [30, 100, 50],  light: [80, 160, 78],   vein: [150, 210, 130] },
   { dark: [40, 110, 170], light: [126, 175, 219], vein: [200, 225, 245] }
 ];
 
+// Turns a colour name (like "gold") into a p5 colour.
 function paletteColour(name) {
   let c = PALETTE[name];
   return color(c[0], c[1], c[2]);
 }
 
+// Says how far the petal edge is from the centre at any angle.
+// "spiky" gives pointed petals, "round" gives soft ones.
 function petalOutline(angle, style, count, rotation, inner) {
   let f = (((angle - rotation) * count) / TWO_PI) % 1;
   if (f < 0) f += 1;
@@ -45,21 +61,28 @@ function petalOutline(angle, style, count, rotation, inner) {
   return inner + (1 - inner) * shape;
 }
 
+// D · Background: dragon scales made with Perlin noise.
 class PerlinBackground {
   constructor() {
+    // How many scales fit across the canvas. Bigger number = smaller scales.
     this.columns = 16;
+    // 0 = still background. A small number like 0.12 makes it shift slowly.
     this.shift = 0;
     this.seed = random(1000);
     this.size = "";
   }
 
+  // Works out the shape of every scale, then sorts them by brightness.
   buildScales(t) {
+    // Width of one scale, and the gap between rows (smaller gap = tighter scales).
     let w = width / this.columns;
     let h = w * 0.48;
     let rowCount = ceil(height / h) + 4;
     let z = t * this.shift;
     let grid = [];
 
+    // Step 1: a grid of points where the scales meet.
+    // Every second row moves half a scale across, like bricks.
     for (let r = 0; r <= rowCount; r++) {
       let points = [];
       for (let c = -2; c <= this.columns + 2; c++) {
@@ -67,6 +90,8 @@ class PerlinBackground {
         let y = (r - 2) * h;
         let nx = x / width;
         let ny = y / height;
+        // Noise pushes each point a little, so the scales grow, shrink
+        // and curve like a dragon's body instead of a flat pattern.
         points.push({
           x: x + (noise(this.seed + nx * 1.3, ny * 1.3, z) - 0.5) * width * 0.24,
           y: y + (noise(this.seed + 20 + nx * 1.3, ny * 1.3, z) - 0.5) * width * 0.22,
@@ -80,6 +105,7 @@ class PerlinBackground {
     this.outlines = [[], [], [], [], []];
     this.inners = [[], [], [], [], []];
 
+    // Step 2: each scale hangs between two points and points down to the row below.
     for (let r = 0; r < grid.length - 1; r++) {
       let tipShift = r % 2 === 0 ? 0 : 1;
       let run = null;
@@ -93,10 +119,13 @@ class PerlinBackground {
 
         let nx = (left.nx + right.nx) / 2;
         let ny = left.ny;
+        // Noise decides how sharp the tip is and how much light the scale catches.
         let point = map(noise(this.seed + 30 + nx * 3, ny * 3), 0, 1, 0.7, 1.25);
         let sheen = noise(this.seed + 40 + nx * 1.6 - z * 0.4, ny * 1.6 + z * 0.2);
+        // Brightness is sorted into 5 levels: 0 = darkest, 4 = brightest.
         let level = constrain(floor(map(sheen, 0.3, 0.7, 0, 5)), 0, 4);
 
+        // Scales next to each other with the same brightness join into one line.
         let outline = this.scaleCurve(left, right, tip, point, 1);
         if (level !== runLevel) {
           run = outline;
@@ -106,6 +135,7 @@ class PerlinBackground {
           run.push(...outline.slice(1));
         }
 
+        // Brighter scales get one or two smaller curves inside, like a shine.
         if (level >= 1) {
           this.inners[level].push(this.scaleCurve(left, right, tip, point, 0.58));
         }
@@ -116,6 +146,8 @@ class PerlinBackground {
     }
   }
 
+  // Makes the curved, pointed edge of one scale.
+  // k = 1 is the outline. A smaller k makes a smaller curve inside it.
   scaleCurve(left, right, tip, point, k) {
     let cx = (left.x + right.x) / 2;
     let cy = (left.y + right.y) / 2;
@@ -137,11 +169,14 @@ class PerlinBackground {
     return curve;
   }
 
+  // Sets the grey colour and transparency for a brightness level.
   shade(level, alphaScale) {
     let grey = NET_BLUES[[2, 2, 0, 0, 1][level]];
     stroke(grey[0], grey[1], grey[2], [140, 165, 190, 215, 240][level] * alphaScale);
   }
 
+  // Draws many lines as one shape, which is much faster.
+  // vertex(x, y, true) starts a new line without joining it to the last one.
   drawLines(lines) {
     beginShape();
     for (const line of lines) {
@@ -153,10 +188,12 @@ class PerlinBackground {
     endShape();
   }
 
+  // Runs every frame: paints the background, then the scale lines.
   draw(t) {
     background(MIDNIGHT[0], MIDNIGHT[1], MIDNIGHT[2]);
     noFill();
 
+    // The scales are only worked out once, or again if the window changes size.
     let size = width + "x" + height;
     if (this.shift > 0 || this.size !== size) {
       this.buildScales(t);
@@ -165,6 +202,7 @@ class PerlinBackground {
 
     let scaleFactor = width / 900;
 
+    // Outlines first, then the shine lines inside.
     strokeWeight(1.5 * scaleFactor);
     for (let level = 0; level < 5; level++) {
       if (this.outlines[level].length === 0) continue;
@@ -181,8 +219,11 @@ class PerlinBackground {
   }
 }
 
+// How many times each pen goes around before the flower is finished.
 const DRAW_LAPS = 4;
 
+// A pen that walks around one ring of the flower and leaves a dot at each step.
+// Builds on the Week 8 DotAnimator.
 class DotPen {
   constructor(radiusFn, colourName, dotSize, spacing, laps) {
     this.radiusFn = radiusFn;
@@ -190,6 +231,7 @@ class DotPen {
     this.dotSize = dotSize;
     this.spacing = spacing;
 
+    // Random start point and direction, so every flower is drawn differently.
     this.angle = random(TWO_PI);
     this.direction = random([-1, 1]);
 
@@ -209,11 +251,14 @@ class DotPen {
     for (let i = 0; i < this.stepsPerFrame && !this.finished; i++) {
       let base = this.radiusFn(this.angle);
 
+      // Noise moves each dot slightly in or out, so the ring looks hand-painted.
       let distort = map(noise(this.distortSeed + this.angle * 0.6, t * 0.5), 0, 1, -0.05, 0.05);
       let r = base + distort;
 
+      // Noise also changes the dot size along the ring.
       let s = this.dotSize * map(noise(this.sizeSeed + this.angle * 1.5, t * 0.3), 0, 1, 0.6, 1.3);
 
+      // Every dot is saved so the finished flower can be redrawn later.
       let dot = { x: cos(this.angle) * r, y: sin(this.angle) * r, size: s, rgb: this.rgb };
       dots.push(dot);
       layer.circle(cx + dot.x * R, cy + dot.y * R, dot.size * R);
@@ -222,6 +267,7 @@ class DotPen {
       this.angle += this.direction * step;
       this.turned += step;
 
+      // Stop after the set number of laps.
       if (this.turned >= this.laps * TWO_PI) {
         this.finished = true;
       }
@@ -229,6 +275,8 @@ class DotPen {
   }
 }
 
+// Picks one colour set and gives a colour to each ring.
+// Two flowers given the same result will have matching colours.
 function pickFlowerColours(scheme = random(FLOWER_SCHEMES)) {
   let petalColours = [scheme.petalBase].concat(scheme.petalDots);
   let coreColours = [scheme.coreBase].concat(scheme.coreDots);
@@ -239,12 +287,14 @@ function pickFlowerColours(scheme = random(FLOWER_SCHEMES)) {
   };
 }
 
+// A · A flower that draws itself with 12 pens: 5 on the petals, 7 in the centre.
 class FlowerDotAnimator {
   constructor(nx, ny, nr, colours = pickFlowerColours()) {
     this.nx = nx;
     this.ny = ny;
     this.nr = nr;
 
+    // Random petal count and turn, so each flower looks different.
     this.petalCount = floor(random(13, 18));
     this.rotation = random(TWO_PI);
     this.inner = random(0.58, 0.66);
@@ -254,11 +304,13 @@ class FlowerDotAnimator {
 
     this.pens = [];
 
+    // Petal pens: 5 rings that follow the petal shape, from the edge inwards.
     [1.0, 0.82, 0.64, 0.46, 0.28].forEach((k, i) => {
       let fn = (a) => lerp(this.coreRatio * 1.05, this.outline(a), k);
       this.pens.push(new DotPen(fn, colours.petal[i], 0.05, 0.07, DRAW_LAPS));
     });
 
+    // Centre pens: 7 circles, from the outside in.
     [0.46, 0.4, 0.33, 0.26, 0.19, 0.12, 0.06].forEach((rr, i) => {
       this.pens.push(new DotPen(() => rr, colours.core[i], 0.055, 0.07, DRAW_LAPS));
     });
@@ -266,6 +318,7 @@ class FlowerDotAnimator {
     this.dots = [];
     this.layer = null;
     this.finished = false;
+    // Called once the flower has finished drawing.
     this.onCreated = null;
   }
 
@@ -273,6 +326,8 @@ class FlowerDotAnimator {
     return petalOutline(angle, "spiky", this.petalCount, this.rotation, this.inner);
   }
 
+  // Makes a fresh layer to draw on (also after a window resize)
+  // and puts back the dots already drawn.
   resetLayer() {
     if (this.layer) this.layer.remove();
     this.layer = null;
@@ -291,6 +346,7 @@ class FlowerDotAnimator {
     }
   }
 
+  // Runs every frame while the flower is being drawn.
   update(t) {
     if (this.finished) return;
 
@@ -304,6 +360,7 @@ class FlowerDotAnimator {
 
     image(this.layer, 0, 0);
 
+    // When every pen is done, the flower is finished.
     if (this.pens.every((p) => p.finished)) {
       this.finished = true;
       this.layer.remove();
@@ -313,6 +370,7 @@ class FlowerDotAnimator {
   }
 }
 
+// One dot that drifts around its home spot using noise (Week 8 randomNoisyShape idea).
 class NoisyDot {
   constructor(hx, hy, region, colourName, size) {
     this.hx = hx;
@@ -330,9 +388,11 @@ class NoisyDot {
   }
 
   update(flower) {
+    // Two noise values give a smooth drift left-right and up-down.
     let ox = map(noise(this.noiseLocation), 0, 1, -1, 1) * this.noiseScale;
     let oy = map(noise(this.noiseLocation + 10), 0, 1, -1, 1) * this.noiseScale;
 
+    // Stops the dot drifting out of its part of the flower.
     let p = flower.keepInside(this.hx + ox, this.hy + oy, this.region);
     this.x = p[0];
     this.y = p[1];
@@ -341,6 +401,8 @@ class NoisyDot {
   }
 }
 
+// B · A filled flower covered in drifting dots.
+// Not placed in the current layout.
 class NoisyFlower {
   constructor(nx, ny, nr, style) {
     this.nx = nx;
@@ -367,6 +429,7 @@ class NoisyFlower {
     return petalOutline(angle, this.style, this.petalCount, this.rotation, this.inner);
   }
 
+  // Picks random spots and keeps only the ones inside the petals or the centre.
   buildDots(count, region) {
     let made = 0;
     while (made < count) {
@@ -388,6 +451,7 @@ class NoisyFlower {
     }
   }
 
+  // Pulls a point back inside its area if it drifts too far.
   keepInside(px, py, region) {
     let r = sqrt(px * px + py * py);
     if (r === 0) return [px, py];
@@ -406,6 +470,7 @@ class NoisyFlower {
     return [cos(a) * clamped, sin(a) * clamped];
   }
 
+  // Draws the petal shape, the centre, then every dot.
   draw() {
     let R = this.nr * width;
 
@@ -435,10 +500,12 @@ class NoisyFlower {
   }
 }
 
+// One shared wind for all the leaves, made with noise. Goes from -1 to 1.
 function windStrength(t) {
   return map(noise(5000 + t * 0.25), 0, 1, -1, 1);
 }
 
+// C · A leaf that swings in the wind, with a Perlin noise texture.
 class WindLeaf {
   constructor(pivot, lengthN, direction, tilt = 0.3) {
     this.px = pivot.x;
@@ -451,17 +518,20 @@ class WindLeaf {
     this.widthRatio = random(0.46, 0.6);
     this.colours = random(LEAF_SETS);
 
+    // Each leaf also flutters on its own, so they don't all move together.
     this.flutterSeed = random(1000);
     this.flutterAmount = random(0.08, 0.16);
 
     this.textureSeed = this.flutterSeed + 500;
   }
 
+  // Noise makes the leaf edge slightly uneven, like a real leaf.
   edgeAt(s, side) {
     let seed = this.textureSeed + (side > 0 ? 0 : 50);
     return map(noise(seed + s * 9), 0, 1, 0.86, 1.1);
   }
 
+  // A point on the leaf edge. s goes from 0 (stem end) to 1 (tip).
   outlinePoint(s, side, L, W) {
     return {
       x: bezierPoint(0, L * 0.25, L * 0.7, L, s),
@@ -469,10 +539,12 @@ class WindLeaf {
     };
   }
 
+  // The middle vein wobbles slightly using noise.
   midribY(s, W) {
     return map(noise(this.textureSeed + 300 + s * 3), 0, 1, -1, 1) * W * 0.025;
   }
 
+  // Draws one half of the leaf (the light side or the dark side).
   drawHalf(L, W, side) {
     beginShape();
     for (let i = 0; i <= 40; i++) {
@@ -482,6 +554,7 @@ class WindLeaf {
     endShape(CLOSE);
   }
 
+  // Soft light and dark patches. Noise decides where they go and how strong they are.
   drawMottling(L, W) {
     let light = this.colours.light;
     let dark = this.colours.dark;
@@ -513,6 +586,7 @@ class WindLeaf {
     }
   }
 
+  // Draws one side vein, from the middle vein out towards the edge.
   drawVein(s0, side, k, L, W, seed) {
     let x0 = bezierPoint(0, L * 0.25, L * 0.7, L, s0);
     let y0 = this.midribY(s0, W);
@@ -531,17 +605,20 @@ class WindLeaf {
     endShape();
   }
 
+  // Runs every frame: works out the swing, turns the leaf, then draws it.
   draw(t, wind) {
     let L = this.lengthN * width;
     let W = L * this.widthRatio;
 
     let flutter = map(noise(this.flutterSeed + t * 1.2), 0, 1, -1, 1) * this.flutterAmount;
 
+    // Swing = shared wind + the leaf's own flutter. Bigger leaves move less.
     let swing = (wind * 0.28 + flutter) * map(this.lengthN, 0.1, 0.4, 1, 0.55, true);
 
     push();
     translate(this.px * width, this.py * height);
 
+    // Leaves pointing left are flipped.
     if (this.direction === 1) {
       rotate(-this.tilt + swing);
     } else {
@@ -556,6 +633,7 @@ class WindLeaf {
     let v = this.colours.vein;
     let seed = this.textureSeed;
 
+    // Light half, dark half, then the patches.
     fill(light[0], light[1], light[2]);
     this.drawHalf(L, W, 1);
 
@@ -564,6 +642,7 @@ class WindLeaf {
 
     this.drawMottling(L, W);
 
+    // Middle vein.
     noFill();
     stroke(v[0], v[1], v[2], 230);
     strokeWeight(max(1, L * 0.012));
@@ -574,6 +653,7 @@ class WindLeaf {
     }
     endShape();
 
+    // Side veins. Noise sets how far each one reaches.
     strokeWeight(max(1, L * 0.007));
     let veins = 9;
     for (let i = 1; i <= veins; i++) {
