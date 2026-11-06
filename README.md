@@ -49,11 +49,11 @@ Our reinterpretation is not a copy: we simplified the shapes into flat vector fo
 
 Randomness decides everything that stays the same for one viewing. Perlin noise gives everything a smooth, natural feel, both in its shape and in how it moves.
 
-- **A · FlowerDotAnimator:** all four flowers draw themselves. Each flower has 12 `DotPen` objects (5 petal rings and 7 centre rings) that travel around the outline leaving dots. Noise moves each dot slightly in or out and changes its size, so the rings look hand-painted. `random()` picks the petal count, the rotation and where each pen starts. After four laps every pen stops, the flower is complete and `onCreated` fires. Extends the Week 8 DotAnimator.
+- **FlowerDotAnimator (flowers):** all four flowers draw themselves. Each flower has 12 `DotPen` objects (5 petal rings and 7 centre rings) that travel around the outline leaving dots. Noise moves each dot slightly in or out and changes its size, so the rings look hand-painted. `random()` picks the petal count, the rotation and where each pen starts. After four laps every pen stops, the flower is complete and `onCreated` fires. Extends the Week 8 DotAnimator.
 - **Colour pairs:** `pickFlowerColours()` picks a colour set and gives a colour to each ring. The four flowers form two pairs: each pair shares one set, and the second pair always gets a different set. Their stems and leaves match too: on every refresh one pair is randomly green and the other blue.
-- **C · WindLeaf:** leaves swing in one shared noise "wind" (`windStrength()`), and each leaf also flutters on its own. Noise also makes the leaf edge slightly uneven, adds soft light and dark patches and sets how far each vein reaches, so the leaves look natural.
+- **WindLeaf (leaves):** leaves swing in one shared noise "wind" (`windStrength()`), and each leaf also flutters on its own. Noise also makes the leaf edge slightly uneven, adds soft light and dark patches and sets how far each vein reaches, so the leaves look natural.
 - **Stems (`plants.js`):** each stem is drawn in six layers. Noise gives it a gentle bend and a slightly changing width, then shading, light and dark patches, fibres, tiny hairs and rings make it look like a real stem.
-- **D · PerlinBackground:** a still background of dragon scales, black with grey lines, reinterpreting Kusama's painted net. Noise pushes a grid of points so the scales grow, shrink and curve like a dragon's body, and decides how sharp each tip is and how much light each scale catches; brighter scales get extra shine lines. The scales are worked out once and redrawn every frame; setting `this.shift` above 0 would make them shift slowly.
+- **PerlinBackground (background):** a still background of dragon scales, black with grey lines, reinterpreting Kusama's painted net. Noise pushes a grid of points so the scales grow, shrink and curve like a dragon's body, and decides how sharp each tip is and how much light each scale catches; brighter scales get extra shine lines. The scales are worked out once and redrawn every frame; setting `this.shift` above 0 would make them shift slowly.
 
 ### Time-based (`time-mechanic.js`) — Yeheng Li
 
@@ -77,34 +77,19 @@ Life of every flower: bud → **bloom** (its own clock) → **full bloom** → *
 - **Regrow:** the regrow event restarts the flower's own bloom clock with new noise seeds, so every new bloom is slightly different.
 - **Working with the other files:** `sketch.js` calls `FlowerDotAnimator.update()` every frame. So that the other team files stay unchanged, `time-mechanic.js` (loaded after `perlin-layer.js`) replaces this method with a timed version that still uses the team's own pens, dots, noise and drawing code. Colours, background, wind and the other mechanics are not changed.
 
+ ### Audio (`audio-mechanic.js`) — Rongwei zhao
 
-### Audio (`audio-mechanic.js`) — Rongwei Zhao
+**Music-driven flower movement.** My audio mechanic explores how sound can influence the visual behaviour of flowers. Instead of using music only as background sound, I use audio amplitude to create a direct relationship between sound intensity and flower size.
 
-**The Garden Listens — Audio-Reactive Lighting**
+The mechanic analyses the volume of the playing audio and maps it to a scaling factor. Quieter sounds produce smaller flower heads, while louder sounds cause the flowers to expand. Smoothing is applied to the scaling changes so that the movement feels organic rather than sudden or mechanical.
 
-My Audio Mechanic makes the flower garden respond to music through lighting effects. Initially, I used audio amplitude to change flower sizes, but I changed this approach to avoid interfering with the Time Mechanic.
+- **Audio analysis:** the sound amplitude is measured continuously to determine the intensity of the music.
+- **Amplitude mapping:** audio levels are converted into flower-head scaling values.
+- **Smooth transitions:** interpolation (`lerp()`) reduces abrupt changes and creates a natural breathing or pulsing effect.
+- **Visual consistency:** flower heads respond to the music while the stems remain anchored in their original positions.
+- **Collaboration:** the audio mechanic is designed to work alongside the team's Perlin Noise and Time-based mechanics, allowing sound to influence the flowers without replacing their existing animations.
 
-**How the Code Works**
-
-The audio system is managed by the `GardenGeneratedMusic` class, which controls music generation, playback, volume and audio analysis.
-
-- **Music generation:** The `oscillator()` function generates musical notes using the Web Audio API, while `drum()` creates drum sounds. The music runs at 96 BPM without external audio files.
-- **Music timing:** `scheduleStep()` arranges the notes, chords and drum beats to create a repeating electronic soundtrack.
-- **Audio analysis:** An `AnalyserNode` analyses the music's frequencies in real time. The `update()` function processes the frequency data and detects different sound levels and beats.
-- **Visual effects:** The `render()` function converts the audio data into lighting effects. Bass creates soft glows, middle frequencies create moving light patterns, treble makes dots sparkle, and beats trigger short flashes.
-- **Animation:** `requestAnimationFrame()` continuously updates the lighting effects, while a transparent Canvas 2D layer keeps them separate from the original artwork.
-
-**Collaboration with Other Mechanics**
-
-- **Jackie (Perlin Noise):** My code reads the existing flower positions and dots without modifying their shapes or animations.
-- **Yeheng (Time Mechanic):** The `visualData()` function checks the flowers' current blooming and wilting states so the lighting follows their life cycles.
-- **Hangjing (User Input):** Newly planted flowers can receive lighting effects. The shared `window.GroupEGeneratedAudio` object also allows interaction sounds to enter the audio system and influence the lighting.
-
-**Technical Integration**
-
-All audio functions are contained in `audio-mechanic.js`. The transparent lighting layer does not block mouse interactions or change the team's original drawing functions, allowing all four mechanics to work together.
-
-
+The audio logic is contained in `audio-mechanic.js` so that it can be integrated into the shared `sketch.js` separately.
 ### User input (`user-input.js`) — Hangjing Ye
 
 **Touch the garden.** The viewer can change the garden, not only decorate it: a click on empty ground plants a new flower that then lives the same life as the others, and a click on a leaf makes it fall. Clicks on flowers and stems give smaller, plant-like answers. I designed the mechanic so it never hides the other mechanics: the blooming clocks, the wilting and the noisy drifting dots always stay fully visible.
@@ -219,7 +204,7 @@ From this I kept four rules for the final version: **let the viewer change the g
 
 ## External references
 
-- IDEA9103 Week 8 tutorial: the DotAnimator pattern that A extends.
+- IDEA9103 Week 8 tutorial: the DotAnimator pattern that the self-drawing flowers (`DotPen`) build on.
 - p5.js reference: https://p5js.org/reference/
 - MDN, Pointer events: https://developer.mozilla.org/en-US/docs/Web/API/Pointer_events — one click handler for mouse, pen and touch (`user-input.js`).
 - MDN, `prefers-reduced-motion`: https://developer.mozilla.org/en-US/docs/Web/CSS/@media/prefers-reduced-motion — smaller motion for users who ask for it (`user-input.js`).
