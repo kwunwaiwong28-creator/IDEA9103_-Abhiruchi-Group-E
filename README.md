@@ -4,7 +4,7 @@ An interactive p5.js reinterpretation of Yayoi Kusama's sunflower painting, buil
 
 ## How to run
 
-Open `index.html` in a browser (an internet connection is needed, because p5.js loads from a CDN). With VS Code, the Live Server extension works too.
+Open `https://kwunwaiwong28-creator.github.io/IDEA9103_-Abhiruchi-Group-E/` to see the artwork !
 
 ## Interaction instructions
 
