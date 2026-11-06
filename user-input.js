@@ -1113,25 +1113,38 @@
     return best;
   }
 
-  // Edge of the flower (in flower units) in the direction of angle a.
+  // How long a life cycle (the time mechanic's FlowerWilt or NoisyFlowerLife)
+  // keeps the flower in full bloom ("hold") and how long it wilts. Newer
+  // versions of time-mechanic.js give every flower its own values (set by
+  // the shared GARDEN_CYCLE); older ones used MATURE_SECONDS and
+  // WILT_SECONDS for all flowers. Both are supported.
+  function holdOf(life) {
+    if (typeof life.hold === 'number') return life.hold;
+    return typeof MATURE_SECONDS === 'number' ? MATURE_SECONDS : 6;
+  }
+  function wiltLengthOf(life) {
+    if (typeof life.wilt === 'number') return life.wilt;
+    return typeof WILT_SECONDS === 'number' ? WILT_SECONDS : 15;
+  }
+
   // Whether a flower can be seen right now. While the time mechanic shows only
   // a dry stem (after most dots have fallen, until the flower regrows), its
   // place counts as empty space, so a click there plants a new flower.
   function flowerVisible(flower) {
     if (headless.has(flower)) return false;                 // its head has fallen off
-    if (typeof clockNow !== 'function' || typeof MATURE_SECONDS === 'undefined') return true;
-    const gone = MATURE_SECONDS + WILT_SECONDS * 0.7;      // most dots have fallen by then
+    if (typeof clockNow !== 'function') return true;
     const life = flower.life;                               // a noisy flower's NoisyFlowerLife
     if (life && life.clock) {
       const now = clockNow() - life.clock.start;
       if (now < 0) return true;                             // still a bud
+      const gone = holdOf(life) + wiltLengthOf(life) * 0.7; // most dots have fallen by then
       return now % life.period < life.clock.bloom + gone;
     }
     if (flower.finished && typeof wilts !== 'undefined') {  // a finished self-drawing flower
       const plant = plantOf.get(flower);
       const wilt = plant ? plant.wilt : wilts.find((w) => w.flower === flower && !w.gone);
       if (!wilt || wilt.gone) return true;
-      return wilt.phase === 'wilt' && wilt.timer.seconds() < gone;
+      return wilt.phase === 'wilt' && wilt.timer.seconds() < holdOf(wilt) + wiltLengthOf(wilt) * 0.7;
     }
     return true;                                            // still drawing itself
   }
@@ -1734,7 +1747,7 @@
     applyRecolours(Infinity, flower);
     const wilt = activeWilt(flower);
     if (flower.finished && wilt && wilt.phase === 'wilt' && Array.isArray(wilt.dots)) {
-      const wiltTime = Math.max(0, wilt.timer.seconds() - (typeof MATURE_SECONDS === 'number' ? MATURE_SECONDS : 0));
+      const wiltTime = Math.max(0, wilt.timer.seconds() - holdOf(wilt));
       return wilt.dots.filter((d) => d.state === 'attached').map((d) => ({
         x: d.x, y: d.y + d.droop(wiltTime), size: d.size, rgb: d.colourAt(wiltTime)
       }));
@@ -1760,7 +1773,9 @@
   }
 
   // The flower starts again: its old life cycle is ended (the stem turns
-  // green again) and the team's redrawFlower() makes it draw itself anew.
+  // green again) and the team's redrawFlower() makes it draw itself anew,
+  // starting now (its next FlowerWilt then fits it back into its slot of
+  // the time mechanic's GARDEN_CYCLE).
   function regrowFlower(flower) {
     headless.delete(flower);
     petalCache.delete(flower);
@@ -1769,7 +1784,9 @@
       wilt.gone = true;
       if (wilt.stemWilt) wilt.stemWilt.restore();
     }
-    if (typeof redrawFlower === 'function') redrawFlower(flower);   // its resetLayer() frees the old layer
+    if (typeof redrawFlower === 'function') {
+      redrawFlower(flower, typeof clockNow === 'function' ? clockNow() : undefined);   // its resetLayer() frees the old layer
+    }
   }
 
   // Falling heads: the ones of planted flowers are drawn with the planted
