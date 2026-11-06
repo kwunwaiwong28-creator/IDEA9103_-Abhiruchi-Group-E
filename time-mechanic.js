@@ -767,13 +767,16 @@ class NoisyFlowerLife {
 
 /* -------------------------------------------------------------------------------------------------
    9. CONNECTING TO THE TEAM'S CLASSES
-   sketch.js calls FlowerDotAnimator.update() and NoisyFlower.draw() every frame. So that the team's
+   sketch.js calls FlowerDotAnimator.update() (and NoisyFlower.draw(), if used) every frame. So that the team's
    files stay unchanged, these two methods are replaced here (index.html loads this file after
    perlin-layer.js and before sketch.js). The new versions still use the team's own pens, dots,
    noise and draw code; they only add the timing. The original draw() is kept as teamNoisyDraw.
 ------------------------------------------------------------------------------------------------- */
 
-const teamNoisyDraw = NoisyFlower.prototype.draw;
+// perlin-layer.js may no longer include NoisyFlower (all four flowers are now self-drawing),
+// so the noisy-flower connection is only made when that class exists.
+const hasNoisyFlower = typeof NoisyFlower !== "undefined";
+const teamNoisyDraw = hasNoisyFlower ? NoisyFlower.prototype.draw : null;
 
 // Self-drawing flowers: the pens draw only as fast as the flower's clock allows.
 function bloomUpdate(t) {
@@ -845,4 +848,4 @@ function lifeDraw() {
 }
 
 FlowerDotAnimator.prototype.update = bloomUpdate;
-NoisyFlower.prototype.draw = lifeDraw;
+if (hasNoisyFlower) NoisyFlower.prototype.draw = lifeDraw;
