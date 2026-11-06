@@ -4,7 +4,7 @@
   colours, petal counts, where each pen starts.
   noise() gives smooth, natural change: wobbly dots, wind, leaf edges, the scales.
 
-  DotPen and NoisyDot build on the IDEA9103 Week 8 tutorial.
+  DotPen builds on the IDEA9103 Week 8 tutorial.
 */
 
 // Colours picked from the Kusama painting.
@@ -38,12 +38,6 @@ const LEAF_SETS = [
   { dark: [30, 100, 50],  light: [80, 160, 78],   vein: [150, 210, 130] },
   { dark: [40, 110, 170], light: [126, 175, 219], vein: [200, 225, 245] }
 ];
-
-// Turns a colour name (like "gold") into a p5 colour.
-function paletteColour(name) {
-  let c = PALETTE[name];
-  return color(c[0], c[1], c[2]);
-}
 
 // Says how far the petal edge is from the centre at any angle.
 // "spiky" gives pointed petals, "round" gives soft ones.
@@ -367,136 +361,6 @@ class FlowerDotAnimator {
       this.layer = null;
       if (this.onCreated) this.onCreated(this);
     }
-  }
-}
-
-// One dot that drifts around its home spot using noise (Week 8 randomNoisyShape idea).
-class NoisyDot {
-  constructor(hx, hy, region, colourName, size) {
-    this.hx = hx;
-    this.hy = hy;
-    this.x = hx;
-    this.y = hy;
-    this.region = region;
-    this.colour = paletteColour(colourName);
-    this.size = size;
-
-    this.noiseLocation = random(1000);
-    this.noiseScale = random(0.1, 0.3);
-
-    this.speed = random(0.004, 0.012);
-  }
-
-  update(flower) {
-    // Two noise values give a smooth drift left-right and up-down.
-    let ox = map(noise(this.noiseLocation), 0, 1, -1, 1) * this.noiseScale;
-    let oy = map(noise(this.noiseLocation + 10), 0, 1, -1, 1) * this.noiseScale;
-
-    // Stops the dot drifting out of its part of the flower.
-    let p = flower.keepInside(this.hx + ox, this.hy + oy, this.region);
-    this.x = p[0];
-    this.y = p[1];
-
-    this.noiseLocation += this.speed;
-  }
-}
-
-// B · A filled flower covered in drifting dots.
-// Not placed in the current layout.
-class NoisyFlower {
-  constructor(nx, ny, nr, style) {
-    this.nx = nx;
-    this.ny = ny;
-    this.nr = nr;
-    this.style = style;
-
-    this.petalCount = style === "round" ? floor(random(10, 14)) : floor(random(14, 19));
-    this.rotation = random(TWO_PI);
-    this.inner = style === "round" ? random(0.55, 0.62) : random(0.62, 0.7);
-
-    this.coreRatio = this.inner * random(0.72, 0.8);
-
-    this.scheme = random(FLOWER_SCHEMES);
-    this.petalBase = paletteColour(this.scheme.petalBase);
-    this.coreBase = paletteColour(this.scheme.coreBase);
-
-    this.dots = [];
-    this.buildDots(170, "petal");
-    this.buildDots(120, "core");
-  }
-
-  outline(angle) {
-    return petalOutline(angle, this.style, this.petalCount, this.rotation, this.inner);
-  }
-
-  // Picks random spots and keeps only the ones inside the petals or the centre.
-  buildDots(count, region) {
-    let made = 0;
-    while (made < count) {
-      let x = random(-1, 1);
-      let y = random(-1, 1);
-      let r = sqrt(x * x + y * y);
-      let a = atan2(y, x);
-
-      let inside = region === "core"
-        ? r < this.coreRatio * 0.88
-        : r > this.coreRatio * 1.1 && r < this.outline(a) * 0.88;
-
-      if (inside) {
-        let colours = region === "core" ? this.scheme.coreDots : this.scheme.petalDots;
-        let size = region === "core" ? random(0.035, 0.06) : random(0.025, 0.045);
-        this.dots.push(new NoisyDot(x, y, region, random(colours), size));
-        made++;
-      }
-    }
-  }
-
-  // Pulls a point back inside its area if it drifts too far.
-  keepInside(px, py, region) {
-    let r = sqrt(px * px + py * py);
-    if (r === 0) return [px, py];
-    let a = atan2(py, px);
-
-    let minR, maxR;
-    if (region === "core") {
-      minR = 0;
-      maxR = this.coreRatio * 0.9;
-    } else {
-      minR = this.coreRatio * 1.06;
-      maxR = this.outline(a) * 0.9;
-    }
-
-    let clamped = constrain(r, minR, maxR);
-    return [cos(a) * clamped, sin(a) * clamped];
-  }
-
-  // Draws the petal shape, the centre, then every dot.
-  draw() {
-    let R = this.nr * width;
-
-    push();
-    translate(this.nx * width, this.ny * height);
-    noStroke();
-
-    fill(this.petalBase);
-    beginShape();
-    for (let i = 0; i < 180; i++) {
-      let a = (TWO_PI / 180) * i;
-      let r = this.outline(a) * R;
-      vertex(cos(a) * r, sin(a) * r);
-    }
-    endShape(CLOSE);
-
-    fill(this.coreBase);
-    circle(0, 0, this.coreRatio * 2 * R);
-
-    for (const dot of this.dots) {
-      dot.update(this);
-      fill(dot.colour);
-      circle(dot.x * R, dot.y * R, dot.size * R);
-    }
-
-    pop();
   }
 }
 
