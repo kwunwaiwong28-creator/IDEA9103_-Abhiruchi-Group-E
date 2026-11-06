@@ -8,8 +8,8 @@ Open `index.html` in a browser (an internet connection is needed, because p5.js 
 
 ## Interaction instructions
 
-- **Watch:** the four flowers open quickly one after another, each keeping a different kind of time (see *Time-based* below). Then they take turns: one shared 30-second garden cycle gives each flower its own slot, so while one flower wilts (its dots fall in the wind, its stem and leaves dry and bend), the others stay open. After a short rest as a dry stem it blooms again with its own clock, forever, so the picture never empties. Flowers you plant by clicking join the same rhythm. Meanwhile dots drift inside the flowers, leaves sway in the wind and the background lines wander.
-- **Refresh the page:** every refresh generates a new composition (new colours, petal counts and dot layouts) and starts the cycle again.
+- **Watch:** the four flowers open quickly one after another, each keeping a different kind of time (see *Time-based* below). Then they take turns: one shared 30-second garden cycle gives each flower its own slot, so while one flower wilts (its dots fall in the wind, its stem and leaves dry and bend), the others stay open. After a short rest as a dry stem it blooms again with its own clock, forever, so the picture never empties. Flowers you plant by clicking join the same rhythm. Meanwhile the dots wobble as each flower draws itself, and the leaves sway in the wind over a still dragon-scale background.
+- **Refresh the page:** every refresh generates a new composition (new colours, petal counts and dot layouts, with each pair of flowers sharing its colours, stems and leaves) and starts the cycle again.
 - **Move the mouse (user input):** the mouse is a small dot with a short trail of dots. It grows and takes the colour of anything you can touch; over a flower, a ring of small dots also circles it.
 - **Click a flower:** it bounces with a soft chime (higher on each click) and a new set of colours spreads across it from where you clicked, with a small ring of dots in the new colour. The first three clicks in a row change its colours; on the fourth, its whole head falls off the stem to the ground with a falling run of soft notes and a low thump when it lands; a few seconds later it draws itself again on the stem.
 - **Click empty space:** the background net gives way under the click and springs back, the background changes to its next colour (crimson, violet, forest green, amber, then back to the original midnight blue), spreading out from the click, and a new flower is planted there. A seed drops to the ground, a stem shoots up to where you clicked, a leaf unfolds and a new flower draws itself at the top; it then blooms, wilts and regrows with the rest of the garden. The new plant is drawn as one piece, just behind the original plants. Only one seed grows at a time, with a short pause after it, and up to two planted flowers stay; a third makes the oldest fade away.
@@ -27,12 +27,12 @@ The painting shows four sunflower-like flowers rising from bold green stems and 
 
 These features shaped our approach:
 
-- **Dots as the building block.** Instead of drawing solid shapes, our flowers are made of dots, as in Kusama's work: the self-drawing flowers (`FlowerDotAnimator`) are traced dot by dot along their petal and ring outlines, and the noisy flowers (`NoisyFlower`) are filled with hundreds of drifting dots.
+- **Dots as the building block.** Instead of drawing solid shapes, our flowers are made of dots, as in Kusama's work: all four flowers (`FlowerDotAnimator`) draw themselves dot by dot along their petal and ring outlines.
 - **Rings in the centres and spiky petals.** The concentric rings of the flower centres became separate dot pens that circle the core, and the spiky and rounded petal shapes are generated from an outline function with a random petal count, so each refresh gives a new flower in the same spirit.
-- **The painted net.** The fine mesh in the background became the Perlin-noise net of wavy lines (`PerlinBackground`).
-- **Four flowers, one palette.** Like the painting, the composition has four flowers of different sizes on tall stems, and our palette is taken from the painting's colours.
+- **The painted net.** The fine mesh in the background became a still Perlin-noise pattern of dragon scales (`PerlinBackground`), black with grey lines, so the bright flowers stand out.
+- **Four flowers, one palette.** Like the painting, the composition has four flowers of different sizes on tall stems, and our palette is taken from the painting's colours. The flowers come in two matching pairs, each with its own colours, stems and leaves.
 
-Our reinterpretation is not a copy: we simplified the shapes into flat vector forms and asked what would happen if Kusama's still image were alive. Each mechanic answers that question in its own way — the flowers keep their own time as they bloom, wilt and regrow (time), their dots drift and the net wanders (Perlin noise and randomness), they pulse with music (audio), and they respond to the viewer's touch (user input). For the user input mechanic we were also inspired by teamLab's *Flowers and People, Cannot be Controlled but Live Together, for Eternity* (2014, Tokyo; https://www.teamlab.art/), where the presence of visitors changes how the flowers behave.
+Our reinterpretation is not a copy: we simplified the shapes into flat vector forms and asked what would happen if Kusama's still image were alive. Each mechanic answers that question in its own way — the flowers keep their own time as they bloom, wilt and regrow (time), their dots wobble as they are drawn and their leaves sway in a noise wind (Perlin noise and randomness), they pulse with music (audio), and they respond to the viewer's touch (user input). For the user input mechanic we were also inspired by teamLab's *Flowers and People, Cannot be Controlled but Live Together, for Eternity* (2014, Tokyo; https://www.teamlab.art/), where the presence of visitors changes how the flowers behave.
 
 ## Mechanic ownership
 
@@ -43,15 +43,18 @@ Our reinterpretation is not a copy: we simplified the shapes into flat vector fo
 | Audio | Rongwei Zhao | `audio-mechanic.js` |
 | User input | Hangjing Ye | `user-input.js` |
 
-`plants.js` holds the static stems. `sketch.js` brings all the scripts together.
+`plants.js` holds the stems, textured with Perlin noise. `sketch.js` brings all the scripts together.
 
-### Perlin noise and randomness (`perlin-layer.js` & `plants.js`)
+### Perlin noise and randomness (`perlin-layer.js` & `plants.js`) — Jackie
 
-Randomness decides everything that stays fixed for one viewing; Perlin noise drives everything that moves.
+Randomness decides everything that stays the same for one viewing. Perlin noise gives everything a smooth, natural feel, both in its shape and in how it moves.
 
-- · FlowerDotAnimator:** flower that draws itself. Its DotPen objects travel around the petal and core contours leaving dots, and noise wobbles each pen's path so it looks hand-painted. After four laps every pen stops and the flower is complete, which fires an `onCreated` event. Extends the Week 8 DotAnimator.
-- · WindLeaf:** leaves swaying in a shared noise "wind", plus each leaf's own flutter.
-- · PerlinBackground:** wavy background lines shaped by 2D Perlin noise, reinterpreting Kusama's painted net.
+- **A · FlowerDotAnimator:** all four flowers draw themselves. Each flower has 12 `DotPen` objects (5 petal rings and 7 centre rings) that travel around the outline leaving dots. Noise moves each dot slightly in or out and changes its size, so the rings look hand-painted. `random()` picks the petal count, the rotation and where each pen starts. After four laps every pen stops, the flower is complete and `onCreated` fires. Extends the Week 8 DotAnimator.
+- **Colour pairs:** `pickFlowerColours()` picks a colour set and gives a colour to each ring. The four flowers form two pairs: each pair shares one set, and the second pair always gets a different set. Their stems and leaves match too: on every refresh one pair is randomly green and the other blue.
+- **B · NoisyFlower:** a filled flower covered in `NoisyDot` objects that drift around a random home with noise (the Week 8 randomNoisyShape pattern). It is no longer placed in the layout, since all four flowers are now A.
+- **C · WindLeaf:** leaves swing in one shared noise "wind" (`windStrength()`), and each leaf also flutters on its own. Noise also makes the leaf edge slightly uneven, adds soft light and dark patches and sets how far each vein reaches, so the leaves look natural.
+- **Stems (`plants.js`):** each stem is drawn in six layers. Noise gives it a gentle bend and a slightly changing width, then shading, light and dark patches, fibres, tiny hairs and rings make it look like a real stem.
+- **D · PerlinBackground:** a still background of dragon scales, black with grey lines, reinterpreting Kusama's painted net. Noise pushes a grid of points so the scales grow, shrink and curve like a dragon's body, and decides how sharp each tip is and how much light each scale catches; brighter scales get extra shine lines. The scales are worked out once and redrawn every frame; setting `this.shift` above 0 would make them shift slowly.
 
 ### Time-based (`time-mechanic.js`) — Yeheng Li
 
@@ -173,8 +176,10 @@ From this I kept four rules for the final version: **let the viewer change the g
 - **Easing:** a smooth-step function (`smooth01`) makes every opening and colour change gradual.
 - **Callbacks:** `onCreated` lets one mechanic start another without the files depending on each other.
 - **Classes and composition:** flowers contain many pen or dot objects and update them every frame.
-- **Off-screen buffer (`createGraphics()`)** so flower A keeps its dot trail while the background redraws.
+- **Off-screen buffer (`createGraphics()`)** so each flower keeps its dot trail while the background redraws.
 - **Normalised coordinates and `windowResized()`** so the piece rescales to any window (Week 8).
+- **Noise as texture:** noise sets the uneven leaf edges, the light and dark patches on the leaves and stems, and the bend, fibres and hairs of the stems.
+- **Drawing many lines as one shape:** `vertex(x, y, true)` starts a new line inside one `beginShape()`, so the hundreds of scale lines are drawn as a few shapes and the background stays fast.
 - **Audio amplitude analysis:** measuring sound intensity to drive visual changes.
 - **Mapping (`map()`):** converting audio levels into flower-head scaling values.
 - **Interpolation (`lerp()`):** smoothing size transitions to create organic, music-responsive movement.
@@ -193,7 +198,7 @@ From this I kept four rules for the final version: **let the viewer change the g
 
 ## AI acknowledgement
 
-- **Jackie (`perlin-layer.js`,`plants.js`, `sketch.js`):** parts of this code were generated with the help of Claude and then edited. Claude helped structure the classes, write the petal-shape, noise and debug the layout.
+- **Jackie (`perlin-layer.js`,`plants.js`, `sketch.js`):** parts of this code were generated with the help of Claude and then edited. Claude helped structure the classes, write the petal shape, the noise textures for the leaves and stems, the dragon-scale background and the code comments, and debug the layout.
 - **Yeheng Li (`time-mechanic.js`):** parts of this code were generated with the help of Claude and then edited by me. I wrote the first version (`Timer`, `WiltingDot`, `FlowerWilt`) myself, designed the four bloom clocks, the wilting and the life cycle, and re-checked, edited and tested all of the code before committing it.
 - **Rongwei Zhao (`audio-mechanic.js`):** I used ChatGPT (OpenAI) as a support tool while developing my Audio Mechanic. My creative direction was to make the flowers respond to music by changing their size according to sound intensity. I used AI assistance to troubleshoot compatibility with the team's existing code.
 - **Hangjing Ye (`user-input.js`):** I designed the mechanic (touching the garden: planting flowers, changing flower and background colours, falling flowers and leaves, swaying stems, the dot cursor and the sounds) and chose every change after testing each version and responding to my tutor's feedback. ChatGPT (OpenAI) helped with the first version (click detection and the control panel); Claude (Anthropic) helped me write the later versions, including the springs, the falling and planting logic, the Web Audio sounds and the reorganisation into classes. How each part works is explained in the User input section above. I tested everything in the browser and edited the code; the same note is at the top of `user-input.js`.
