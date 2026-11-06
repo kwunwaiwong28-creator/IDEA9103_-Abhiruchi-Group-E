@@ -1,4 +1,4 @@
-# IDEA9103 Creative Coding — Major Project
+# IDEA9103 Creative Coding — Major Project ("The Flowers")
 
 An interactive p5.js reinterpretation of Yayoi Kusama's sunflower painting, built by a team of [3–4] people. Each team member is creative director for one mechanic, and each mechanic lives in its own script file.
 
@@ -51,7 +51,6 @@ Randomness decides everything that stays the same for one viewing. Perlin noise 
 
 - **A · FlowerDotAnimator:** all four flowers draw themselves. Each flower has 12 `DotPen` objects (5 petal rings and 7 centre rings) that travel around the outline leaving dots. Noise moves each dot slightly in or out and changes its size, so the rings look hand-painted. `random()` picks the petal count, the rotation and where each pen starts. After four laps every pen stops, the flower is complete and `onCreated` fires. Extends the Week 8 DotAnimator.
 - **Colour pairs:** `pickFlowerColours()` picks a colour set and gives a colour to each ring. The four flowers form two pairs: each pair shares one set, and the second pair always gets a different set. Their stems and leaves match too: on every refresh one pair is randomly green and the other blue.
-- **B · NoisyFlower:** a filled flower covered in `NoisyDot` objects that drift around a random home with noise (the Week 8 randomNoisyShape pattern). It is no longer placed in the layout, since all four flowers are now A.
 - **C · WindLeaf:** leaves swing in one shared noise "wind" (`windStrength()`), and each leaf also flutters on its own. Noise also makes the leaf edge slightly uneven, adds soft light and dark patches and sets how far each vein reaches, so the leaves look natural.
 - **Stems (`plants.js`):** each stem is drawn in six layers. Noise gives it a gentle bend and a slightly changing width, then shading, light and dark patches, fibres, tiny hairs and rings make it look like a real stem.
 - **D · PerlinBackground:** a still background of dragon scales, black with grey lines, reinterpreting Kusama's painted net. Noise pushes a grid of points so the scales grow, shrink and curve like a dragon's body, and decides how sharp each tip is and how much light each scale catches; brighter scales get extra shine lines. The scales are worked out once and redrawn every frame; setting `this.shift` above 0 would make them shift slowly.
@@ -205,7 +204,7 @@ From this I kept four rules for the final version: **let the viewer change the g
 
 ## External references
 
-- IDEA9103 Week 8 tutorial: the DotAnimator and randomNoisyShape patterns that A and B extend.
+- IDEA9103 Week 8 tutorial: the DotAnimator pattern that A extends.
 - p5.js reference: https://p5js.org/reference/
 - MDN, Pointer events: https://developer.mozilla.org/en-US/docs/Web/API/Pointer_events — one click handler for mouse, pen and touch (`user-input.js`).
 - MDN, `prefers-reduced-motion`: https://developer.mozilla.org/en-US/docs/Web/CSS/@media/prefers-reduced-motion — smaller motion for users who ask for it (`user-input.js`).
