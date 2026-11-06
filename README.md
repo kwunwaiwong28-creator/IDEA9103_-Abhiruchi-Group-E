@@ -77,19 +77,34 @@ Life of every flower: bud → **bloom** (its own clock) → **full bloom** → *
 - **Regrow:** the regrow event restarts the flower's own bloom clock with new noise seeds, so every new bloom is slightly different.
 - **Working with the other files:** `sketch.js` calls `FlowerDotAnimator.update()` every frame. So that the other team files stay unchanged, `time-mechanic.js` (loaded after `perlin-layer.js`) replaces this method with a timed version that still uses the team's own pens, dots, noise and drawing code. Colours, background, wind and the other mechanics are not changed.
 
- ### Audio (`audio-mechanic.js`) — Rongwei zhao
 
-**Music-driven flower movement.** My audio mechanic explores how sound can influence the visual behaviour of flowers. Instead of using music only as background sound, I use audio amplitude to create a direct relationship between sound intensity and flower size.
+### Audio (`audio-mechanic.js`) — Rongwei Zhao
 
-The mechanic analyses the volume of the playing audio and maps it to a scaling factor. Quieter sounds produce smaller flower heads, while louder sounds cause the flowers to expand. Smoothing is applied to the scaling changes so that the movement feels organic rather than sudden or mechanical.
+**The Garden Listens — Audio-Reactive Lighting**
 
-- **Audio analysis:** the sound amplitude is measured continuously to determine the intensity of the music.
-- **Amplitude mapping:** audio levels are converted into flower-head scaling values.
-- **Smooth transitions:** interpolation (`lerp()`) reduces abrupt changes and creates a natural breathing or pulsing effect.
-- **Visual consistency:** flower heads respond to the music while the stems remain anchored in their original positions.
-- **Collaboration:** the audio mechanic is designed to work alongside the team's Perlin Noise and Time-based mechanics, allowing sound to influence the flowers without replacing their existing animations.
+My Audio Mechanic makes the flower garden respond to music through lighting effects. Initially, I used audio amplitude to change flower sizes, but I changed this approach to avoid interfering with the Time Mechanic.
 
-The audio logic is contained in `audio-mechanic.js` so that it can be integrated into the shared `sketch.js` separately.
+**How the Code Works**
+
+The audio system is managed by the `GardenGeneratedMusic` class, which controls music generation, playback, volume and audio analysis.
+
+- **Music generation:** The `oscillator()` function generates musical notes using the Web Audio API, while `drum()` creates drum sounds. The music runs at 96 BPM without external audio files.
+- **Music timing:** `scheduleStep()` arranges the notes, chords and drum beats to create a repeating electronic soundtrack.
+- **Audio analysis:** An `AnalyserNode` analyses the music's frequencies in real time. The `update()` function processes the frequency data and detects different sound levels and beats.
+- **Visual effects:** The `render()` function converts the audio data into lighting effects. Bass creates soft glows, middle frequencies create moving light patterns, treble makes dots sparkle, and beats trigger short flashes.
+- **Animation:** `requestAnimationFrame()` continuously updates the lighting effects, while a transparent Canvas 2D layer keeps them separate from the original artwork.
+
+**Collaboration with Other Mechanics**
+
+- **Jackie (Perlin Noise):** My code reads the existing flower positions and dots without modifying their shapes or animations.
+- **Yeheng (Time Mechanic):** The `visualData()` function checks the flowers' current blooming and wilting states so the lighting follows their life cycles.
+- **Hangjing (User Input):** Newly planted flowers can receive lighting effects. The shared `window.GroupEGeneratedAudio` object also allows interaction sounds to enter the audio system and influence the lighting.
+
+**Technical Integration**
+
+All audio functions are contained in `audio-mechanic.js`. The transparent lighting layer does not block mouse interactions or change the team's original drawing functions, allowing all four mechanics to work together.
+
+
 ### User input (`user-input.js`) — Hangjing Ye
 
 **Touch the garden.** The viewer can change the garden, not only decorate it: a click on empty ground plants a new flower that then lives the same life as the others, and a click on a leaf makes it fall. Clicks on flowers and stems give smaller, plant-like answers. I designed the mechanic so it never hides the other mechanics: the blooming clocks, the wilting and the noisy drifting dots always stay fully visible.
