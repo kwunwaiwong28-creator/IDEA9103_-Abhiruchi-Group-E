@@ -1,4 +1,3 @@
-
 // Time for noise(). It goes up a little every frame, so the noise changes smoothly.
 let t = 0;
 let timeStep = 0.01;
@@ -7,7 +6,6 @@ let timeStep = 0.01;
 let perlinBackground;
 let animatedFlowers = [];
 let wilts = [];
-let noisyFlowers = [];
 let stems = [];
 let leaves = [];
 
@@ -26,7 +24,7 @@ function setup() {
   noiseDetail(3, 0.5);
 
   // Dragon-scale background.
-  perlinBackground = new PerlinBackground(18, 14);
+  perlinBackground = new PerlinBackground();
 
   // Randomly picks which flower pair gets green and which gets blue.
   let plantColours = shuffle(["green", "blue"]);
@@ -85,10 +83,6 @@ function draw() {
 
   for (const w of wilts) {
     w.update(wind);
-  }
-
-  for (const flower of noisyFlowers) {
-    flower.draw();
   }
 
   // Move time forward so the noise keeps changing.
