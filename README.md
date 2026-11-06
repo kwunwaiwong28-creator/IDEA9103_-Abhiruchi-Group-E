@@ -49,10 +49,9 @@ Our reinterpretation is not a copy: we simplified the shapes into flat vector fo
 
 Randomness decides everything that stays fixed for one viewing; Perlin noise drives everything that moves.
 
-- **A · FlowerDotAnimator:** a flower that draws itself. Its DotPen objects travel around the petal and core contours leaving dots, and noise wobbles each pen's path so it looks hand-painted. After four laps every pen stops and the flower is complete, which fires an `onCreated` event. Extends the Week 8 DotAnimator.
-- **B · NoisyFlower:** a solid flower filled with NoisyDot objects. Each dot gets a random home, and noise makes it drift around that home (the Week 8 randomNoisyShape pattern). `keepInside()` keeps it inside its petal or the core.
-- **C · WindLeaf:** leaves swaying in a shared noise "wind", plus each leaf's own flutter.
-- **D · PerlinBackground:** wavy background lines shaped by 2D Perlin noise, reinterpreting Kusama's painted net.
+- · FlowerDotAnimator:** flower that draws itself. Its DotPen objects travel around the petal and core contours leaving dots, and noise wobbles each pen's path so it looks hand-painted. After four laps every pen stops and the flower is complete, which fires an `onCreated` event. Extends the Week 8 DotAnimator.
+- · WindLeaf:** leaves swaying in a shared noise "wind", plus each leaf's own flutter.
+- · PerlinBackground:** wavy background lines shaped by 2D Perlin noise, reinterpreting Kusama's painted net.
 
 ### Time-based (`time-mechanic.js`) — Yeheng Li
 
