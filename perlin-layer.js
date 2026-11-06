@@ -39,23 +39,16 @@ const LEAF_SETS = [
   { dark: [40, 110, 170], light: [126, 175, 219], vein: [200, 225, 245] }
 ];
 
-// Says how far the petal edge is from the centre at any angle.
-// "spiky" gives pointed petals, "round" gives soft ones.
-function petalOutline(angle, style, count, rotation, inner) {
+// Says how far the pointed petal edge is from the centre at any angle.
+function petalOutline(angle, count, rotation, inner) {
   let f = (((angle - rotation) * count) / TWO_PI) % 1;
   if (f < 0) f += 1;
 
-  let shape;
-  if (style === "spiky") {
-    shape = pow(1 - abs(f * 2 - 1), 1.4);
-  } else {
-    shape = pow(sin(f * PI), 0.6);
-  }
-
+  let shape = pow(1 - abs(f * 2 - 1), 1.4);
   return inner + (1 - inner) * shape;
 }
 
-// D · Background: dragon scales made with Perlin noise.
+// Background: dragon scales made with Perlin noise.
 class PerlinBackground {
   constructor() {
     // How many scales fit across the canvas. Bigger number = smaller scales.
@@ -281,7 +274,7 @@ function pickFlowerColours(scheme = random(FLOWER_SCHEMES)) {
   };
 }
 
-// A · A flower that draws itself with 12 pens: 5 on the petals, 7 in the centre.
+// Flower: draws itself with 12 pens, 5 on the petals and 7 in the centre.
 class FlowerDotAnimator {
   constructor(nx, ny, nr, colours = pickFlowerColours()) {
     this.nx = nx;
@@ -317,7 +310,7 @@ class FlowerDotAnimator {
   }
 
   outline(angle) {
-    return petalOutline(angle, "spiky", this.petalCount, this.rotation, this.inner);
+    return petalOutline(angle, this.petalCount, this.rotation, this.inner);
   }
 
   // Makes a fresh layer to draw on (also after a window resize)
@@ -369,7 +362,7 @@ function windStrength(t) {
   return map(noise(5000 + t * 0.25), 0, 1, -1, 1);
 }
 
-// C · A leaf that swings in the wind, with a Perlin noise texture.
+// Leaf: swings in the wind, with a Perlin noise texture.
 class WindLeaf {
     constructor(pivot, lengthN, direction, tilt = 0.3, colours = random(LEAF_SETS)) {
     this.px = pivot.x;
